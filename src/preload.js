@@ -181,4 +181,10 @@ contextBridge.exposeInMainWorld('api', {
 
   /** Native context menu item clicked: { id } */
   onContextMenuClick:   (cb) => on('context-menu-click',   cb),
+
+  /** Main process is about to quit — renderer should flush and call confirmFlush() */
+  onAppQuitting:        (cb) => once('app-quitting',       cb),
+
+  /** Notify main process that the renderer has finished flushing */
+  confirmFlush: () => ipcRenderer.send('renderer-flush-done'),
 });

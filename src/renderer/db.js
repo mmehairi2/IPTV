@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DB_NAME = 'iptv_player_db';
-const DB_VER  = 2;  // Bump when adding stores; add migration in onupgradeneeded below
+const DB_VER  = 3;  // v3: removed unused 'epg' object store (EPG lives in meta blob)
 
 let _db = null;
 let dbReady = null;
@@ -22,9 +22,8 @@ function openDB() {
 
     req.onupgradeneeded = (e) => {
       const db = e.target.result;
-      const oldVersion = e.oldVersion;
 
-      // key/value store for source, settings, timestamps, epg_url
+      // key/value store for source, settings, timestamps, epg_url, epg blob
       if (!db.objectStoreNames.contains('meta'))
         db.createObjectStore('meta', { keyPath: 'key' });
 
@@ -45,9 +44,10 @@ function openDB() {
       if (!db.objectStoreNames.contains('favs'))
         db.createObjectStore('favs', { keyPath: 'id' });
 
-      // v2: dedicated EPG store (channel-keyed) for better perf vs. single meta blob
-      if (oldVersion < 2 && !db.objectStoreNames.contains('epg')) {
-        db.createObjectStore('epg', { keyPath: 'ch' });
+      // v3: drop the channel-keyed 'epg' store created in v2 but never used.
+      // EPG is stored as a single meta blob under key 'epg' — schema now matches code.
+      if (db.objectStoreNames.contains('epg')) {
+        db.deleteObjectStore('epg');
       }
     };
 

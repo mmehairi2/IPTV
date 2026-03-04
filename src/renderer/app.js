@@ -564,6 +564,8 @@ const Player = (() => {
       if (_retryUrl && S.current) {
         vlcDirect(_retryUrl, S.current.name);
       }
+      // Hide the player overlay — VLC plays in its own external window
+      Player.close();
     }));
 
     _unsubs.push(api.onMpvExited(({ code }) => {
@@ -574,20 +576,7 @@ const Player = (() => {
     _unsubs.push(api.onMpvSocketError(({ message }) => {
       console.warn('[mpv socket]', message);
     }));
-  
-
-    // Listen for window movement from main process
-    _unsubs.push(api.onWinMoved(() => {
-      // Reset bounds cache on window move
-      _lastBounds = null;
-      // Trigger a reposition if player is open
-      if (_ready && Player.isOpen) {
-        _getScreenBounds().then(bounds => {
-          api.mpvResize(bounds);
-          _lastBounds = bounds;
-        });
-      }
-    }));
+    // onWinMoved is handled exclusively by _startResizeObserver to avoid duplicate resize IPC
   }
 
   // ── Public API ───────────────────────────────────────────────────────────────
@@ -978,6 +967,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   checkVLCStatus();
   detectMpv();
   setupBgRefresh();
+
+  // Flush playback position before the main process kills mpv on quit
+  api.onAppQuitting(async () => {
+    try {
+      if (Player.isOpen) await Player.close();
+    } catch (_) {
+      // Never block quit on an error
+    } finally {
+      api.confirmFlush();
+    }
+  });
 });
 
 async function bootApp() {
@@ -2181,7 +2181,8 @@ function showCtx(e, type, encodedUrl, encodedName) {
     { id: 'copy', label: '📋  Copy Stream URL' },
   ]);
 
-  api.onContextMenuClick(({ id }) => {
+  const unsub = api.onContextMenuClick(({ id }) => {
+    unsub();
     if (id === 'play') playItem(eu(url), eu(name), type, type, '');
     if (id === 'vlc')  vlcDirect(url, name);
     if (id === 'fav')  toggleFav(type, eu(name));

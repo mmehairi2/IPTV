@@ -85,7 +85,7 @@ async function spawnMpv(url, bounds) {
     `--geometry=${geo}`,
     '--no-border',
     '--ontop',
-    '--ontop-level=system',
+    ...(IS_WIN ? ['--ontop-level=system'] : []),
     '--keepaspect-window=no',  // This prevents letterboxing
     '--keep-open=yes',
     '--idle=yes',
@@ -103,7 +103,7 @@ async function spawnMpv(url, bounds) {
     '--no-osc',
     '--no-input-default-bindings',
     // REMOVE: '--no-focus-on-open',        // Invalid equivalent, causes error
-    '--window-minimized=yes',              // Don't start minimized
+    '--window-minimized=yes',              // Start hidden; mpv-show reveals it when ready
     ...(url ? [url] : []),
   ];
 
@@ -251,7 +251,7 @@ function killMpv() {
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280, height: 800, minWidth: 960, minHeight: 600,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: '#050a18',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -608,7 +608,30 @@ app.whenReady().then(() => {
   createWindow();
   app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
 });
-app.on('window-all-closed', () => { killMpv(); if (!IS_MAC) app.quit(); });
-app.on('before-quit', () => killMpv());
+
+app.on('window-all-closed', () => { if (!IS_MAC) app.quit(); });
+
+app.on('before-quit', async (e) => {
+  // Signal the renderer to flush playback position before we kill mpv.
+  // We prevent the default quit, wait up to 2s for the renderer to confirm,
+  // then kill mpv and allow quit to proceed.
+  if (!mainWindow) { killMpv(); return; }
+
+  e.preventDefault();
+
+  const flushTimeout = setTimeout(() => {
+    console.warn('[quit] Renderer flush timed out — forcing quit');
+    killMpv();
+    app.exit(0);
+  }, 2000);
+
+  ipcMain.once('renderer-flush-done', () => {
+    clearTimeout(flushTimeout);
+    killMpv();
+    app.exit(0);
+  });
+
+  mainWindow.webContents.send('app-quitting');
+});
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }

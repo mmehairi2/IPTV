@@ -277,7 +277,7 @@ async function clearAll() {
     }
     
     // Delete meta items individually
-    const metaKeys = ['source', 'settings', 'epg_url', 'epg', 'cache_ts'];
+    const metaKeys = ['source', 'settings', 'epg_url', 'epg', 'cache_ts', 'watchlist'];
     for (const key of metaKeys) {
       try {
         await delMeta(key);

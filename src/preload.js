@@ -33,6 +33,9 @@ contextBridge.exposeInMainWorld('api', {
   fetchXtream: (url)     => invoke('fetch-xtream', { url }),
   fetchEpg:    (url)     => invoke('fetch-epg',    { url }),
 
+  /** Open URL in the default system browser */
+  openExternal: (url) => invoke('open-external', { url }),
+
   // ── mpv Lifecycle ───────────────────────────────────────────
 
   /** Detect mpv, returns path string or null */

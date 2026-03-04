@@ -59,6 +59,26 @@ function srcLabel() {
   return S.source.type === 'xtream' ? `${S.source.user}@Xtream` : 'M3U Playlist';
 }
 
+function watchlistKey(type, name) {
+  return `${type}:${name}`;
+}
+
+function isInWatchlist(type, name) {
+  return S.watchlist && S.watchlist.has(watchlistKey(type, name));
+}
+
+async function addToWatchlist(type, name) {
+  const key = watchlistKey(type, name);
+  S.watchlist.add(key);
+  await DB.setMeta('watchlist', [...S.watchlist]);
+}
+
+async function removeFromWatchlist(type, name) {
+  const key = watchlistKey(type, name);
+  S.watchlist.delete(key);
+  await DB.setMeta('watchlist', [...S.watchlist]);
+}
+
 // Lightweight performance instrumentation (dev only, no-throw)
 function perfLog(label, payload = {}) {
   try {

@@ -2,9 +2,8 @@
 // imageCache.js — In-memory poster/logo cache using blob URLs
 // ─────────────────────────────────────────────────────────────────────────────
 
-const cache   = new Map();
+const cache   = new Map(); // url -> blobUrl; insertion order = LRU (oldest first)
 const pending = new Map();
-const lru     = [];
 const MAX     = 600;
 
 function getCached(url) { return cache.get(url) || null; }
@@ -32,16 +31,21 @@ async function fetchBlob(url) {
 
 function store(url, blobUrl) {
   if (cache.size >= MAX) {
-    const oldest = lru.shift();
-    if (oldest) { URL.revokeObjectURL(cache.get(oldest)); cache.delete(oldest); }
+    const oldest = cache.keys().next().value;
+    if (oldest != null) {
+      URL.revokeObjectURL(cache.get(oldest));
+      cache.delete(oldest);
+    }
   }
   cache.set(url, blobUrl);
-  lru.push(url);
 }
 
+// O(1): move url to end of insertion order (most recently used)
 function touch(url) {
-  const i = lru.indexOf(url);
-  if (i > -1) { lru.splice(i, 1); lru.push(url); }
+  if (!cache.has(url)) return;
+  const blobUrl = cache.get(url);
+  cache.delete(url);
+  cache.set(url, blobUrl);
 }
 
 function preload(urls, batchSize = 8) {
@@ -97,7 +101,8 @@ function img(url, _unused, fallback) {
 
 function clearAll() {
   for (var blobUrl of cache.values()) URL.revokeObjectURL(blobUrl);
-  cache.clear(); pending.clear(); lru.length = 0;
+  cache.clear();
+  pending.clear();
 }
 
 window.ImageCache = { getCached, load, preload, img, clearAll };

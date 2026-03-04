@@ -16,13 +16,14 @@ const S = {
   epg:        {},
   epgFull:    {},   // full schedule for EPG timeline grid
   favs:       new Set(),
+  watchlist:  new Set(),
   history:    [],
   view:       { live: 'grid', movies: 'grid', series: 'grid' },
   activeCat:  { live: 'all', movies: 'all', series: 'all' },
   search:     { live: '', movies: '', series: '' },
   page:       { live: 0, movies: 0, series: 0 },
   current:    null,
-  settings:   { defaultPlayer: 'mpv', hwdec: true, defaultVolume: 85 },
+  settings:   { defaultPlayer: 'mpv', hwdec: true, defaultVolume: 85, brightness: 0, contrast: 0, saturation: 0 },
   vlcFound:   false,
   bgCleanup:  null,
 };
@@ -497,6 +498,7 @@ const Player = (() => {
       _setLoading(false);
       _clearError();
       _startHistTimer();
+      _applyVideoAdjustments();
       if (_openStartedAt) {
         perfLog('channel-switch', {
           ms: performance.now() - _openStartedAt,
@@ -640,6 +642,7 @@ const Player = (() => {
       }
       try {
         await _waitReady();
+        _applyVideoAdjustments();
       } catch (err) {
         console.error('[Player] Socket timeout:', err.message);
         _setError('mpv started but socket timed out. Try again or use VLC.');
@@ -720,6 +723,7 @@ const Player = (() => {
     _setLoading(false);
     _clearError();
     $('stream-info').classList.remove('visible');
+    $('video-adjust-panel').classList.remove('visible');
 
     // Refresh home continue watching row
     if (document.getElementById('page-home').classList.contains('active')) renderHome();
@@ -747,6 +751,27 @@ const Player = (() => {
     const el = $('stream-info');
     const on = el.classList.toggle('visible');
     if (on) _refreshStreamInfo();
+    $('video-adjust-panel').classList.remove('visible');
+  }
+
+  function _applyVideoAdjustments() {
+    const b = Math.max(-100, Math.min(100, S.settings.brightness ?? 0));
+    const c = Math.max(-100, Math.min(100, S.settings.contrast ?? 0));
+    const s = Math.max(-100, Math.min(100, S.settings.saturation ?? 0));
+    api.mpvSetProperty('brightness', b);
+    api.mpvSetProperty('contrast', c);
+    api.mpvSetProperty('saturation', s);
+  }
+
+  function toggleVideoAdjust() {
+    const el = $('video-adjust-panel');
+    const on = el.classList.toggle('visible');
+    if (on) {
+      $('stream-info').classList.remove('visible');
+      $('video-brightness').value = S.settings.brightness ?? 0;
+      $('video-contrast').value   = S.settings.contrast ?? 0;
+      $('video-saturation').value = S.settings.saturation ?? 0;
+    }
   }
 
   function toggleFullscreen() {
@@ -797,6 +822,28 @@ const Player = (() => {
     $('ffwd-btn').addEventListener('click',        () => seek(10));
     $('fullscreen-btn').addEventListener('click',  toggleFullscreen);
     $('stream-info-btn').addEventListener('click', toggleInfo);
+    $('video-adjust-btn').addEventListener('click', toggleVideoAdjust);
+
+    function _onVideoAdjustChange(prop, value) {
+      const v = Math.max(-100, Math.min(100, value));
+      S.settings[prop] = v;
+      api.mpvSetProperty(prop, v);
+      DB.setMeta('settings', S.settings);
+    }
+    $('video-brightness').addEventListener('input', () => _onVideoAdjustChange('brightness', parseInt($('video-brightness').value, 10)));
+    $('video-contrast').addEventListener('input', () => _onVideoAdjustChange('contrast', parseInt($('video-contrast').value, 10)));
+    $('video-saturation').addEventListener('input', () => _onVideoAdjustChange('saturation', parseInt($('video-saturation').value, 10)));
+    $('video-adjust-reset').addEventListener('click', () => {
+      S.settings.brightness = 0;
+      S.settings.contrast = 0;
+      S.settings.saturation = 0;
+      $('video-brightness').value = 0;
+      $('video-contrast').value = 0;
+      $('video-saturation').value = 0;
+      _applyVideoAdjustments();
+      DB.setMeta('settings', S.settings);
+    });
+
     $('player-back-btn').addEventListener('click', close);
     $('prev-btn').addEventListener('click', () => _isLive ? prevChannel() : prevEpisode());
     $('next-btn').addEventListener('click', () => _isLive ? nextChannel() : nextEpisode());
@@ -952,6 +999,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupFavTabs();
   setupGlobalSearch();
   setupSortButtons();
+  setupOnboarding();
+  setupLiveCardEpgTooltip();
+  setupGridKeyboardNav();
   setupSleepTimer();
   setupNextEpPrompt();
   setupEPGControls();     // Phase 3: EPG timeline
@@ -982,7 +1032,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function bootApp() {
 
-  const [src, channels, movies, series, cats, favs, history, settings, epg] =
+  const [src, channels, movies, series, cats, favs, watchlist, history, settings, epg] =
     await Promise.all([
       DB.getMeta('source'),
       DB.getData('channels'),
@@ -990,6 +1040,7 @@ async function bootApp() {
       DB.getData('series'),
       DB.getCats(),
       DB.getFavs(),
+      DB.getMeta('watchlist'),
       DB.getHistory(),
       DB.getMeta('settings'),
       DB.getMeta('epg'),
@@ -1001,6 +1052,7 @@ async function bootApp() {
   if (series)   S.series   = series;
   if (cats)     S.cats     = cats;
   if (favs)     S.favs     = favs;
+  if (watchlist && Array.isArray(watchlist)) S.watchlist = new Set(watchlist);
   if (history)  S.history  = history;
   if (settings) S.settings = { ...S.settings, ...settings };
   if (epg)      S.epg      = epg;
@@ -1104,20 +1156,32 @@ function showCtx(e, type, encodedUrl, encodedName) {
   const name   = decodeURIComponent(encodedName);
   const favKey = `${type}:${name}`;
   const isFav  = S.favs.has(favKey);
+  const inWatchlist = isInWatchlist(type, name);
 
   api.showContextMenu([
     { id: 'play', label: '▶  Play' },
     { id: 'vlc',  label: '🎬  Open in VLC' },
     { type: 'separator' },
     { id: 'fav',  label: isFav ? '★  Remove from Favorites' : '☆  Add to Favorites' },
+    { id: 'watchlist', label: inWatchlist ? '✓  Remove from Watchlist' : '📋  Add to Watchlist' },
     { id: 'copy', label: '📋  Copy Stream URL' },
   ]);
 
-  const unsub = api.onContextMenuClick(({ id }) => {
+  const unsub = api.onContextMenuClick(async ({ id }) => {
     unsub();
     if (id === 'play') playItem(eu(url), eu(name), type, type, '');
     if (id === 'vlc')  vlcDirect(url, name);
     if (id === 'fav')  toggleFav(type, eu(name));
+    if (id === 'watchlist') {
+      if (inWatchlist) {
+        await removeFromWatchlist(type, name);
+        toast('Removed from watchlist');
+      } else {
+        await addToWatchlist(type, name);
+        toast('Added to watchlist', 'success');
+      }
+      if (document.getElementById('page-watchlist')?.classList.contains('active')) renderWatchlist();
+    }
     if (id === 'copy') navigator.clipboard.writeText(url).then(() => toast('URL copied!', 'success'));
   });
 }

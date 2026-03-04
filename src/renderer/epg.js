@@ -89,10 +89,14 @@ function getEPG(id) {
 // ═════════════════════════════════════════════════════════════════════════════
 
 // State
+const EPG_ROW_HEIGHT = 56;
+const EPG_VIRTUAL_BUFFER = 5;
 const EPG_STATE = {
   zoomHours:  1,        // how many hours visible in viewport
   offsetMs:   0,        // scroll offset from now in ms (negative = past)
   filter:     '',
+  rows:       [],       // channel rows for current render (for virtualization)
+  rowParams:  null,    // { firstSlot, totalPx, viewStart, viewEnd, pxPerMs, now, timeSlots }
 };
 
 // pixels per millisecond (recalculated from zoom)
@@ -213,62 +217,88 @@ function renderEPGGrid() {
   // Now line
   html += `<div class="epg-now-line" style="left:${nowPx}px"></div>`;
 
-  // Channel rows
-  const COLOURS = [
-    'rgba(58,122,255,0.18)', 'rgba(48,209,88,0.15)',
-    'rgba(255,159,10,0.15)', 'rgba(175,82,222,0.15)',
-    'rgba(255,69,58,0.15)',  'rgba(90,200,250,0.15)',
-  ];
+  // Store for virtualization
+  EPG_STATE.rows = rows;
+  EPG_STATE.rowParams = { firstSlot, totalPx, viewStart, viewEnd, pxPerMs, now, timeSlots };
 
-  for (let ri = 0; ri < rows.length; ri++) {
-    const ch  = rows[ri];
-    const key = ch.tvgId || ch.name;
-    const progs = (epgFull[key] || epgFull[key?.toLowerCase()] || [])
-      .filter(p => p.stop > viewStart && p.start < viewEnd);
-
-    const colour = COLOURS[ri % COLOURS.length];
-    const chJ    = JSON.stringify(ch).replace(/"/g, '&quot;');
-    const logo = ch.logo ? ImageCache.img(ch.logo, '', '📺').replace('<img', '<img style="width:28px;height:28px;object-fit:contain;border-radius:4px;background:var(--bg-4);"') : `<div style="width:28px;height:28px;background:var(--bg-4);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;">📺</div>`;
-
-    html += `<div class="epg-row" style="width:${totalPx + 180}px">`;
-    html += `<div class="epg-channel-name" onclick="openDetail(${chJ},'live')" title="${esc(ch.name)}">
-      ${logo}
-      <span class="epg-ch-label">${esc(ch.name)}</span>
-    </div>`;
-    html += `<div class="epg-programmes" style="position:relative;width:${totalPx}px;height:100%;">`;
-
-    if (!progs.length) {
-      html += `<span class="epg-no-data">No schedule data</span>`;
-    } else {
-      for (const prog of progs) {
-        const left  = Math.round((prog.start - firstSlot) * pxPerMs);
-        const width = Math.max(4, Math.round((prog.stop - prog.start) * pxPerMs) - 2);
-        const isNow  = prog.start <= now && prog.stop > now;
-        const isPast = prog.stop <= now;
-        const cls = `epg-prog${isNow ? ' is-now' : ''}${isPast ? ' is-past' : ''}`;
-        const bg  = isNow ? 'rgba(58,122,255,0.3)' : colour;
-        const startStr = new Date(prog.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const stopStr  = new Date(prog.stop).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const progJ = JSON.stringify({ title: prog.title, desc: prog.desc, start: startStr, stop: stopStr }).replace(/"/g,'&quot;');
-
-        html += `<div class="${cls}"
-          style="left:${left}px;width:${width}px;background:${bg};"
-          onmouseenter="epgShowTip(event,${progJ})"
-          onmouseleave="epgHideTip()"
-          onclick="epgProgClick(event,${JSON.stringify(ch).replace(/"/g,'&quot;')})">
-          <span class="epg-prog-title">${esc(prog.title)}</span>
-          ${width > 80 ? `<span class="epg-prog-time">${startStr}</span>` : ''}
-        </div>`;
-      }
-    }
-
-    html += '</div></div>';
-  }
+  // Wrapper for channel rows (height keeps scrollbar correct; only visible rows rendered)
+  const wrapperHeight = rows.length * EPG_ROW_HEIGHT;
+  html += `<div id="epg-rows-wrapper" style="position:relative;width:${totalPx + 180}px;height:${wrapperHeight}px;min-width:max-content;">`;
+  html += '</div>';
 
   container.innerHTML = html;
 
+  let scrollDebounce = null;
+  if (!container._epgScrollBound) {
+    container._epgScrollBound = true;
+    container.addEventListener('scroll', () => {
+      clearTimeout(scrollDebounce);
+      scrollDebounce = setTimeout(updateEPGVisibleRows, 50);
+    });
+  }
+
+  updateEPGVisibleRows();
+
   // Auto-scroll to now
   setTimeout(() => scrollEPGToNow(), 50);
+}
+
+const EPG_COLOURS = [
+  'rgba(58,122,255,0.18)', 'rgba(48,209,88,0.15)',
+  'rgba(255,159,10,0.15)', 'rgba(175,82,222,0.15)',
+  'rgba(255,69,58,0.15)',  'rgba(90,200,250,0.15)',
+];
+
+function buildEPGRowHtml(ch, ri, params) {
+  const { firstSlot, totalPx, viewStart, viewEnd, pxPerMs, now } = params;
+  const epgFull = S.epgFull || {};
+  const key = ch.tvgId || ch.name;
+  const progs = (epgFull[key] || epgFull[key?.toLowerCase()] || [])
+    .filter(p => p.stop > viewStart && p.start < viewEnd);
+  const colour = EPG_COLOURS[ri % EPG_COLOURS.length];
+  const chJ = JSON.stringify(ch).replace(/"/g, '&quot;');
+  const logo = ch.logo ? ImageCache.img(ch.logo, '', '📺').replace('<img', '<img style="width:28px;height:28px;object-fit:contain;border-radius:4px;background:var(--bg-4);"') : `<div style="width:28px;height:28px;background:var(--bg-4);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;">📺</div>`;
+
+  let row = `<div class="epg-channel-name" onclick="openDetail(${chJ},'live')" title="${esc(ch.name)}">${logo}<span class="epg-ch-label">${esc(ch.name)}</span></div>`;
+  row += `<div class="epg-programmes" style="position:relative;width:${totalPx}px;height:100%;">`;
+  if (!progs.length) {
+    row += `<span class="epg-no-data">No schedule data</span>`;
+  } else {
+    for (const prog of progs) {
+      const left  = Math.round((prog.start - firstSlot) * pxPerMs);
+      const width = Math.max(4, Math.round((prog.stop - prog.start) * pxPerMs) - 2);
+      const isNow  = prog.start <= now && prog.stop > now;
+      const isPast = prog.stop <= now;
+      const cls = `epg-prog${isNow ? ' is-now' : ''}${isPast ? ' is-past' : ''}`;
+      const bg  = isNow ? 'rgba(58,122,255,0.3)' : colour;
+      const startStr = new Date(prog.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const stopStr  = new Date(prog.stop).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const progJ = JSON.stringify({ title: prog.title, desc: prog.desc, start: startStr, stop: stopStr }).replace(/"/g,'&quot;');
+      row += `<div class="${cls}" style="left:${left}px;width:${width}px;background:${bg};" onmouseenter="epgShowTip(event,${progJ})" onmouseleave="epgHideTip()" onclick="epgProgClick(event,${JSON.stringify(ch).replace(/"/g,'&quot;')})"><span class="epg-prog-title">${esc(prog.title)}</span>${width > 80 ? `<span class="epg-prog-time">${startStr}</span>` : ''}</div>`;
+    }
+  }
+  row += '</div>';
+  return row;
+}
+
+function updateEPGVisibleRows() {
+  const container = document.getElementById('epg-grid-container');
+  const wrapper = document.getElementById('epg-rows-wrapper');
+  if (!container || !wrapper || !EPG_STATE.rows.length || !EPG_STATE.rowParams) return;
+
+  const scrollTop = container.scrollTop;
+  const clientHeight = container.clientHeight;
+  const start = Math.max(0, Math.floor(scrollTop / EPG_ROW_HEIGHT) - EPG_VIRTUAL_BUFFER);
+  const end = Math.min(EPG_STATE.rows.length, Math.ceil((scrollTop + clientHeight) / EPG_ROW_HEIGHT) + EPG_VIRTUAL_BUFFER);
+
+  let html = '';
+  for (let i = start; i < end; i++) {
+    const ch = EPG_STATE.rows[i];
+    const top = i * EPG_ROW_HEIGHT;
+    const rowHtml = buildEPGRowHtml(ch, i, EPG_STATE.rowParams);
+    html += `<div class="epg-row" style="position:absolute;left:0;top:${top}px;width:${EPG_STATE.rowParams.totalPx + 180}px;height:${EPG_ROW_HEIGHT}px;">${rowHtml}</div>`;
+  }
+  wrapper.innerHTML = html;
 }
 
 function epgShowTip(event, progData) {

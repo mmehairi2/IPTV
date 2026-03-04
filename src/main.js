@@ -400,6 +400,13 @@ ipcMain.handle('fetch-m3u',    (_, { url }) => fetchUrl(url));
 ipcMain.handle('fetch-xtream', (_, { url }) => fetchUrl(url));
 ipcMain.handle('fetch-epg',    (_, { url }) => fetchUrl(url));
 
+ipcMain.handle('open-external', (_, { url }) => {
+  if (url && (url.startsWith('http:') || url.startsWith('https:'))) {
+    return shell.openExternal(url).then(() => ({ ok: true })).catch(err => ({ ok: false, error: err?.message }));
+  }
+  return { ok: false, error: 'Invalid URL' };
+});
+
 // ─── VLC ──────────────────────────────────────────────────────
 ipcMain.handle('vlc-check', async () => {
   const vlcPath = await findVLC();

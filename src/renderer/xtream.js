@@ -73,10 +73,12 @@ async function loadXtreamData(silent = false) {
       name: s.name, logo: s.stream_icon, group: s.category_id,
       url:  xtUrl('movie', s.stream_id, s.container_extension || 'mp4'),
       streamId: s.stream_id, year: s.year, rating: s.rating,
+      plot: s.plot || '', cast: s.cast || '', director: s.director || '', genre: s.genre || '',
     }));
     S.series = (ser || []).map(s => ({
       name: s.name, logo: s.cover, group: s.category_id,
-      streamId: s.series_id, year: s.year, rating: s.rating, plot: s.plot,
+      streamId: s.series_id, year: s.year, rating: s.rating, plot: s.plot || '',
+      cast: s.cast || '', director: s.director || '', genre: s.genre || '',
     }));
 
     await Promise.all([DB.setData('movies', S.movies), DB.setData('series', S.series), DB.stampCache()]);

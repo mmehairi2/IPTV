@@ -28,6 +28,19 @@ function openDetail(item, type) {
   if (type === 'live') meta.push(`<span class="pill">Live TV</span>`);
   document.getElementById('detail-meta').innerHTML = meta.join('');
 
+  // Cast / director (Xtream VOD/series)
+  const castEl = document.getElementById('detail-cast');
+  const castParts = [];
+  if (item.director && String(item.director).trim()) castParts.push(`<strong>Director:</strong> ${esc(String(item.director).trim())}`);
+  if (item.cast && String(item.cast).trim()) castParts.push(`<strong>Cast:</strong> ${esc(String(item.cast).trim())}`);
+  if (castParts.length) {
+    castEl.innerHTML = castParts.join('<br>');
+    castEl.style.display = '';
+  } else {
+    castEl.innerHTML = '';
+    castEl.style.display = 'none';
+  }
+
   const desc = document.getElementById('detail-desc');
   desc.textContent = item.plot || item.description || '';
   desc.classList.remove('expanded');
@@ -69,11 +82,38 @@ function openDetail(item, type) {
     favBtn.textContent = S.favs.has(favKey) ? '★ Favorited' : '☆ Favorite';
   };
 
+  // Watchlist button
+  const watchlistBtn = document.getElementById('detail-watchlist-btn');
+  if (watchlistBtn) {
+    watchlistBtn.textContent = isInWatchlist(type, item.name) ? '✓ In Watchlist' : '+ Watchlist';
+    watchlistBtn.onclick = async () => {
+      if (isInWatchlist(type, item.name)) {
+        await removeFromWatchlist(type, item.name);
+        watchlistBtn.textContent = '+ Watchlist';
+      } else {
+        await addToWatchlist(type, item.name);
+        watchlistBtn.textContent = '✓ In Watchlist';
+      }
+      if (document.getElementById('page-watchlist')?.classList.contains('active')) renderWatchlist();
+    };
+  }
+
   // VLC button
   document.getElementById('detail-vlc-btn').onclick = () => {
     if (item.url) vlcDirect(item.url, item.name);
   };
   document.getElementById('detail-vlc-btn').style.display = item.url ? '' : 'none';
+
+  // Trailer button — open YouTube search in default browser
+  const trailerBtn = document.getElementById('detail-trailer-btn');
+  trailerBtn.onclick = () => {
+    const q = encodeURIComponent(item.name + ' trailer');
+    const url = `https://www.youtube.com/results?search_query=${q}`;
+    if (window.api && typeof window.api.openExternal === 'function') {
+      window.api.openExternal(url);
+    }
+  };
+  trailerBtn.style.display = (type === 'live') ? 'none' : '';
 
   // Episode browser
   const epBrowser = document.getElementById('episode-browser');

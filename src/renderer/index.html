@@ -447,6 +447,19 @@ svg    { display: block; flex-shrink: 0; }
 }
 .card:hover .card-fav { opacity: 1; }
 .card-fav.active { opacity: 1; color: var(--yellow); }
+.card-watchlist-remove {
+  position: absolute;
+  top: 8px; right: 8px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  color: var(--text-2);
+  transition: background 0.15s, color 0.15s;
+}
+.card-watchlist-remove:hover { background: rgba(255,69,58,0.8); color: #fff; }
 .card-progress {
   position: absolute;
   bottom: 0; left: 0; right: 0;
@@ -974,6 +987,28 @@ svg    { display: block; flex-shrink: 0; }
 .info-label { color: rgba(255,255,255,0.35); }
 .info-value { color: rgba(255,255,255,0.8); font-weight: 600; }
 
+/* ─── Video adjust (brightness / contrast / saturation) ───────── */
+#video-adjust-panel {
+  position: fixed;
+  top: 70px; right: 16px;
+  background: rgba(0,0,0,0.75);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(12px);
+  padding: 12px 16px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.85);
+  display: none;
+  z-index: 11;
+  min-width: 200px;
+}
+#video-adjust-panel.visible { display: block; }
+.video-adjust-title { font-weight: 600; margin-bottom: 10px; font-size: 12px; }
+.video-adjust-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.video-adjust-row label { min-width: 72px; color: rgba(255,255,255,0.7); }
+.video-adjust-row input[type="range"] { flex: 1; accent-color: var(--blue); }
+.video-adjust-reset { margin-top: 10px; width: 100%; }
+
 /* ─── mpv Not Found / VLC Fallback Modal ─────────────────────── */
 #mpv-missing-modal {
   position: fixed;
@@ -1066,8 +1101,10 @@ svg    { display: block; flex-shrink: 0; }
   position: fixed;
   top: 0; right: 0; bottom: 0;
   width: min(480px, 90vw);
-  background: var(--bg-2);
+  background: rgba(10, 16, 32, 0.92);
   border-left: 1px solid var(--border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   z-index: 50;
   display: flex;
   flex-direction: column;
@@ -1081,6 +1118,8 @@ svg    { display: block; flex-shrink: 0; }
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   z-index: 49;
   opacity: 0;
   pointer-events: none;
@@ -1131,6 +1170,13 @@ svg    { display: block; flex-shrink: 0; }
   padding: 2px 8px;
   font-size: 11px;
 }
+.detail-cast {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+.detail-cast strong { color: var(--text-3); font-weight: 600; margin-right: 4px; }
 .detail-desc {
   font-size: 13px;
   color: var(--text-2);
@@ -1415,7 +1461,40 @@ svg    { display: block; flex-shrink: 0; }
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
+.settings-section-icon { font-size: 14px; opacity: 0.9; }
+.settings-section-desc { font-size: 12px; color: var(--text-3); margin-top: -4px; margin-bottom: 12px; }
+
+/* Onboarding overlay (first-time, no source) */
+.onboarding-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background: rgba(5, 10, 24, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.onboarding-overlay.visible { display: flex; }
+.onboarding-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius);
+  padding: 28px 32px;
+  max-width: 380px;
+  text-align: center;
+  box-shadow: 0 24px 48px rgba(0,0,0,0.4);
+}
+.onboarding-icon { font-size: 48px; margin-bottom: 16px; }
+.onboarding-title { font-family: var(--font-display); font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+.onboarding-text { font-size: 13px; color: var(--text-2); line-height: 1.6; margin-bottom: 20px; }
+
 .settings-row {
   display: flex;
   align-items: center;
@@ -1649,6 +1728,11 @@ svg    { display: block; flex-shrink: 0; }
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.314C12.438-3.248 23.534 4.735 8 15-7.534 4.736 3.562-3.248 8 1.314z"/></svg>
         <span class="nav-label">Favorites</span>
       </div>
+      <div class="nav-item" data-page="watchlist">
+        <!-- Bookmark / list -->
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2a2 2 0 012-2h8a2 2 0 012 2v13.5a.5.5 0 01-.777.433L8 13.101l-5.223 2.83A.5.5 0 012 15.5V2zm2-1a1 1 0 00-1 1v12.566l4.723-2.482a.5.5 0 01.554 0L13 14.566V2a1 1 0 00-1-1H4z"/></svg>
+        <span class="nav-label">Watchlist</span>
+      </div>
     </div>
 
     <div class="sidebar-section">
@@ -1707,16 +1791,27 @@ svg    { display: block; flex-shrink: 0; }
 
       <!-- HOME -->
       <section class="page active" id="page-home" data-title="Home">
+        <div id="onboarding-overlay" class="onboarding-overlay" style="display:none;" aria-label="First-time setup">
+          <div class="onboarding-card">
+            <div class="onboarding-icon">📺</div>
+            <div class="onboarding-title">Welcome to Stream</div>
+            <div class="onboarding-text">Connect your IPTV source to get started. Go to <strong>Settings</strong> → <strong>Source</strong> and enter your Xtream Codes server details.</div>
+            <button type="button" class="btn btn-primary" id="onboarding-got-it">Got it</button>
+          </div>
+        </div>
         <div id="continue-watching-section">
           <div class="section-title">Continue Watching</div>
           <div class="continue-row" id="continue-row">
             <!-- populated by app.js -->
           </div>
+          <div class="content-list hidden" id="continue-list"></div>
         </div>
         <div class="section-title">Recently Added <span class="section-subtitle">Live TV</span></div>
         <div class="content-grid" id="home-live-grid"></div>
+        <div class="content-list hidden" id="home-live-list"></div>
         <div class="section-title">Movies</div>
         <div class="content-grid large" id="home-movies-grid"></div>
+        <div class="content-list hidden" id="home-movies-list"></div>
       </section>
 
       <!-- LIVE TV -->
@@ -1747,6 +1842,19 @@ svg    { display: block; flex-shrink: 0; }
           <div class="content-list hidden" id="series-list"></div>
         </div>
         <div class="pagination" id="series-pagination"></div>
+      </section>
+
+      <!-- WATCHLIST -->
+      <section class="page" id="page-watchlist" data-title="Watchlist">
+        <div id="watchlist-content">
+          <div class="content-grid large" id="watchlist-grid"></div>
+          <div class="content-list hidden" id="watchlist-list"></div>
+        </div>
+        <div id="watchlist-empty" class="empty-state hidden">
+          <div class="empty-icon">📋</div>
+          <div class="empty-title">Your watchlist is empty</div>
+          <div class="empty-sub">Add items from the detail panel or right-click a card</div>
+        </div>
       </section>
 
       <!-- FAVORITES -->
@@ -1798,7 +1906,7 @@ svg    { display: block; flex-shrink: 0; }
       <section class="page" id="page-settings" data-title="Settings">
 
         <div class="settings-section">
-          <div class="settings-section-title">Source</div>
+          <div class="settings-section-title"><span class="settings-section-icon" aria-hidden="true">📡</span> Source</div>
           <div class="settings-row">
             <div>
               <div class="settings-label">Server URL</div>
@@ -1824,7 +1932,7 @@ svg    { display: block; flex-shrink: 0; }
         </div>
 
         <div class="settings-section">
-          <div class="settings-section-title">Player</div>
+          <div class="settings-section-title"><span class="settings-section-icon" aria-hidden="true">▶</span> Playback</div>
           <div class="settings-row">
             <div>
               <div class="settings-label">mpv path</div>
@@ -1845,10 +1953,6 @@ svg    { display: block; flex-shrink: 0; }
             </div>
             <input class="settings-input" id="cfg-volume" type="number" min="0" max="100" value="85" style="width:80px;" />
           </div>
-        </div>
-        
-        <div class="settings-section">
-          <div class="settings-section-title">Player Selection</div>
           <div class="settings-row">
             <div>
               <div class="settings-label">Default Player</div>
@@ -1866,12 +1970,12 @@ svg    { display: block; flex-shrink: 0; }
               <div class="settings-label">VLC Status</div>
               <div class="settings-sublabel" id="vlc-status">Checking...</div>
             </div>
-            <button class="btn btn-secondary btn-sm" id="check-vlc-btn" onclick="checkVLCStatus()">Check Again</button>
+            <button class="btn btn-secondary btn-sm" id="check-vlc-btn">Check Again</button>
           </div>
         </div>
 
         <div class="settings-section">
-          <div class="settings-section-title">EPG</div>
+          <div class="settings-section-title"><span class="settings-section-icon" aria-hidden="true">📅</span> EPG</div>
           <div class="settings-row">
             <div>
               <div class="settings-label">EPG URL</div>
@@ -1886,7 +1990,12 @@ svg    { display: block; flex-shrink: 0; }
         </div>
 
         <div class="settings-section">
-          <div class="settings-section-title">Data</div>
+          <div class="settings-section-title"><span class="settings-section-icon" aria-hidden="true">🎨</span> Appearance</div>
+          <p class="settings-section-desc">Theme and display options (coming soon).</p>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title"><span class="settings-section-icon" aria-hidden="true">💾</span> Data</div>
           <div class="settings-row">
             <div>
               <div class="settings-label">Export settings</div>
@@ -1953,6 +2062,23 @@ svg    { display: block; flex-shrink: 0; }
       <div class="info-row"><span class="info-label">Bitrate</span><span class="info-value" id="si-bitrate">—</span></div>
     </div>
 
+    <div id="video-adjust-panel">
+      <div class="video-adjust-title">Video</div>
+      <div class="video-adjust-row">
+        <label for="video-brightness">Brightness</label>
+        <input type="range" id="video-brightness" min="-100" max="100" value="0" />
+      </div>
+      <div class="video-adjust-row">
+        <label for="video-contrast">Contrast</label>
+        <input type="range" id="video-contrast" min="-100" max="100" value="0" />
+      </div>
+      <div class="video-adjust-row">
+        <label for="video-saturation">Saturation</label>
+        <input type="range" id="video-saturation" min="-100" max="100" value="0" />
+      </div>
+      <button type="button" class="btn btn-secondary btn-sm video-adjust-reset" id="video-adjust-reset">Reset</button>
+    </div>
+
     <!-- Player top bar -->
     <div id="player-topbar">
       <button class="player-back-btn" id="player-back-btn">
@@ -1963,6 +2089,9 @@ svg    { display: block; flex-shrink: 0; }
         <div class="player-now-title" id="player-now-title"></div>
         <div class="player-now-sub" id="player-now-sub"></div>
       </div>
+      <button class="ctrl-btn" id="video-adjust-btn" title="Brightness / Contrast / Saturation">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11a3 3 0 100-6 3 3 0 000 6z"/><path d="M8 0a.5.5 0 01.5.5v2a.5.5 0 01-1 0v-2A.5.5 0 018 0zm0 13a.5.5 0 01.5.5v2a.5.5 0 01-1 0v-2A.5.5 0 018 13zm8-5a.5.5 0 01-.5.5h-2a.5.5 0 010-1h2a.5.5 0 01.5.5zM3 8a.5.5 0 01-.5.5h-2a.5.5 0 010-1h2A.5.5 0 013 8zm10.657-5.657a.5.5 0 010 .707l-1.414 1.415a.5.5 0 11-.707-.708l1.414-1.414a.5.5 0 01.707 0zm-9.193 9.193a.5.5 0 010 .707L3.05 13.657a.5.5 0 01-.707-.707l1.414-1.414a.5.5 0 01.707 0zm9.193-2.121a.5.5 0 01-.707 0l-1.414-1.414a.5.5 0 01.707-.707l1.414 1.414a.5.5 0 010 .707zM4.464 4.465a.5.5 0 01-.707 0L2.343 3.05a.5.5 0 11.707-.707l1.414 1.414a.5.5 0 010 .707z"/></svg>
+      </button>
       <button class="ctrl-btn" id="stream-info-btn" title="Stream info (I)">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 15A7 7 0 108 1a7 7 0 000 14zm0 1A8 8 0 118 0a8 8 0 010 16z"/><path d="M5.255 5.786a.237.237 0 00.241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 00.25.246h.811a.25.25 0 00.25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286zm1.557 5.763c0 .533.425.927 1.01.927.609 0 1.028-.394 1.028-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94z"/></svg>
       </button>
@@ -2083,6 +2212,7 @@ svg    { display: block; flex-shrink: 0; }
   <div class="detail-body">
     <div class="detail-title" id="detail-title"></div>
     <div class="detail-meta" id="detail-meta"></div>
+    <div class="detail-cast" id="detail-cast"></div>
     <div class="detail-desc" id="detail-desc"></div>
     <button class="btn-ghost" id="detail-desc-toggle" style="font-size:12px;padding:0;margin-bottom:16px;display:none">Show more</button>
 
@@ -2099,7 +2229,12 @@ svg    { display: block; flex-shrink: 0; }
         <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.314C12.438-3.248 23.534 4.735 8 15-7.534 4.736 3.562-3.248 8 1.314z"/></svg>
         Favorite
       </button>
+      <button class="btn btn-secondary" id="detail-watchlist-btn">+ Watchlist</button>
       <button class="btn btn-ghost" id="detail-vlc-btn">VLC</button>
+      <button class="btn btn-secondary" id="detail-trailer-btn">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8.051 1.999h.089c.822.003 4.987.033 6.11.335a.538.538 0 01.254.059c.3.128.477.36.477.592 0 .196-.127.393-.253.523a.956.956 0 01-.244.22 4.49 4.49 0 00-1.254.798c-.82.82-1.319 1.58-1.447 1.653a.545.545 0 01-.437.163c-.469-.034-.946-.006-1.374-.006-.318 0-.625.004-.818.007-.393.007-.353.006-.714-.047-.254-.051-.352-.068-.45-.068-.194 0-.352.151-.398.35-.101.402-.238 1.005-.488 1.65l-.01.028c-.114.308-.239.794-.508 1.717a.545.545 0 01-.544.387c-.28 0-.605-.123-.732-.38-.127-.257-.127-.578-.127-.964V7.075c0-.386.006-.707.127-.964.127-.257.452-.38.732-.38.28 0 .43.079.544.387.27.923.394 1.41.508 1.717l.01.028c.25.645.387 1.248.488 1.65.046.199.204.35.398.35.098 0 .196.017.45.068.361.053.321.054.714.047.193-.003.5-.007.818-.007.428 0 .905-.028 1.374.006.178.013.354.054.437.163.128.073.627.833 1.447 1.653a4.49 4.49 0 001.254.798.956.956 0 01.244-.22c.126-.13.253-.327.253-.523 0-.232-.177-.464-.477-.592a.538.538 0 00-.254-.059c-1.123-.302-5.288-.332-6.11-.335zM4.5 6.5a.5.5 0 00-1 0v3a.5.5 0 001 0v-3z"/></svg>
+        Trailer
+      </button>
       <button class="btn btn-ghost" id="detail-close-btn" style="margin-left:auto">✕</button>
     </div>
 

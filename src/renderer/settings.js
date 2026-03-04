@@ -59,6 +59,11 @@ function renderSettings() {
     const on = epgToggle.classList.toggle('on');
     saveSetting('autoEpg', on);
   };
+
+  const checkVlcBtn = document.getElementById('check-vlc-btn');
+  if (checkVlcBtn && typeof window.checkVLCStatus === 'function') {
+    checkVlcBtn.onclick = () => window.checkVLCStatus();
+  }
 }
 
 async function clearSource() {

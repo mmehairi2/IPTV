@@ -26,6 +26,7 @@ function navigateTo(page) {
   if (page === 'live')      renderLive();
   if (page === 'movies')    renderMovies();
   if (page === 'series')    renderSeries();
+  if (page === 'watchlist') renderWatchlist();
   if (page === 'favorites') renderFavorites();
   if (page === 'settings')  renderSettings();
   if (page === 'epg')       renderEPGGrid();
@@ -71,8 +72,13 @@ function setGlobalView(view) {
     if (activePage === 'movies') renderMovies();
     if (activePage === 'series') renderSeries();
   }
+  if (activePage === 'home') {
+    S.view.live = view;
+    renderHome();
+  }
+  if (activePage === 'watchlist') renderWatchlist();
   if (activePage === 'favorites') renderFavorites();
-}
+  }
 
 // ═════════════════════════════════════════════════════════════════════════════
 // PLAY ITEM — central entry point
@@ -103,20 +109,44 @@ function playItem(encodedUrl, encodedName, subtitle, type, encodedPoster = '', s
 function renderHome() {
   if (!S.source) { showWelcome(); return; }
 
+  const isGrid = S.view.live !== 'list';
   const cw = getContinueWatching();
   const cwSection = document.getElementById('continue-watching-section');
   const cwRow     = document.getElementById('continue-row');
+  const cwList    = document.getElementById('continue-list');
   if (cw.length) {
     cwSection.style.display = '';
+    cwRow.classList.toggle('hidden', !isGrid);
+    if (cwList) cwList.classList.toggle('hidden', isGrid);
     cwRow.innerHTML = cw.map(cwCard).join('');
+    if (cwList) cwList.innerHTML = cw.map(item => continueListItem(item)).join('');
   } else {
     cwSection.style.display = 'none';
   }
 
-  document.getElementById('home-live-grid').innerHTML =
-    S.channels.slice(0,8).map(c => liveCard(c)).join('') || '';
-  document.getElementById('home-movies-grid').innerHTML =
-    S.movies.slice(0,6).map(m => mediaCard(m,'vod')).join('') || '';
+  const homeLiveGrid  = document.getElementById('home-live-grid');
+  const homeLiveList  = document.getElementById('home-live-list');
+  const homeMoviesGrid = document.getElementById('home-movies-grid');
+  const homeMoviesList = document.getElementById('home-movies-list');
+  const liveSlice  = S.channels.slice(0, 8);
+  const moviesSlice = S.movies.slice(0, 6);
+
+  if (homeLiveGrid) {
+    homeLiveGrid.classList.toggle('hidden', !isGrid);
+    homeLiveGrid.innerHTML = isGrid ? (liveSlice.map(c => liveCard(c)).join('') || '') : '';
+  }
+  if (homeLiveList) {
+    homeLiveList.classList.toggle('hidden', isGrid);
+    homeLiveList.innerHTML = !isGrid ? (liveSlice.map(c => listItem(c, 'live')).join('') || '') : '';
+  }
+  if (homeMoviesGrid) {
+    homeMoviesGrid.classList.toggle('hidden', !isGrid);
+    homeMoviesGrid.innerHTML = isGrid ? (moviesSlice.map(m => mediaCard(m, 'vod')).join('') || '') : '';
+  }
+  if (homeMoviesList) {
+    homeMoviesList.classList.toggle('hidden', isGrid);
+    homeMoviesList.innerHTML = !isGrid ? (moviesSlice.map(m => listItem(m, 'vod')).join('') || '') : '';
+  }
 }
 
 function showWelcome() {
@@ -129,6 +159,25 @@ function showWelcome() {
       <button class="btn btn-primary" style="margin-top:12px" onclick="navigateTo('settings')">Connect Source</button>
     </div>`;
   document.getElementById('home-movies-grid').innerHTML = '';
+  showOnboardingIfNeeded();
+}
+
+async function showOnboardingIfNeeded() {
+  const seen = await DB.getMeta('hasSeenOnboarding');
+  if (!seen) {
+    const el = document.getElementById('onboarding-overlay');
+    if (el) el.classList.add('visible');
+  }
+}
+
+function setupOnboarding() {
+  const btn = document.getElementById('onboarding-got-it');
+  const overlay = document.getElementById('onboarding-overlay');
+  if (!btn || !overlay) return;
+  btn.addEventListener('click', async () => {
+    await DB.setMeta('hasSeenOnboarding', true);
+    overlay.classList.remove('visible');
+  });
 }
 
 function renderLive() {
@@ -234,7 +283,7 @@ function renderFavorites() {
   const isGrid = S.view.live !== 'list';
 
   let items = getFavItems();
-  if (activeType !== 'all') items = items.filter(f => f.type === activeType);
+  if (activeType !== 'all') items = items.filter(f => f.type === activeType || (activeType === 'movie' && f.type === 'vod'));
 
   if (!items.length) {
     grid.innerHTML = '';
@@ -264,6 +313,93 @@ function setupFavTabs() {
   });
 }
 
+function formatEpgTime(ms) {
+  if (!ms) return '';
+  const d = new Date(ms);
+  return d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
+function setupGridKeyboardNav() {
+  document.addEventListener('keydown', (e) => {
+    const activePage = document.querySelector('.page.active');
+    if (!activePage) return;
+    const pageId = activePage.id || '';
+    const gridPages = ['page-live', 'page-movies', 'page-series', 'page-favorites', 'page-watchlist'];
+    if (!gridPages.includes(pageId)) return;
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+    const focusable = activePage.querySelectorAll('.card, .list-item');
+    if (!focusable.length) return;
+
+    const idx = Array.prototype.indexOf.call(focusable, document.activeElement);
+    let nextIdx = -1;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      nextIdx = idx <= 0 ? 0 : idx - 1;
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      nextIdx = idx < 0 ? 0 : (idx >= focusable.length - 1 ? idx : idx + 1);
+    } else if (e.key === 'Enter') {
+      if (document.activeElement?.closest?.('.card, .list-item')) {
+        document.activeElement.click();
+        e.preventDefault();
+      }
+      return;
+    }
+    if (nextIdx >= 0) {
+      focusable[nextIdx].focus();
+      e.preventDefault();
+    }
+  });
+}
+
+function setupLiveCardEpgTooltip() {
+  function showCardEpgTip(el, e) {
+    const tvgId = el.getAttribute('data-tvg-id');
+    if (!tvgId) return;
+    const epg = getEPG(tvgId);
+    if (!epg.now && !epg.next) return;
+    const tip = document.getElementById('epg-tooltip');
+    if (!tip) return;
+    const titleEl = document.getElementById('epg-tip-title');
+    const timeEl  = document.getElementById('epg-tip-time');
+    const descEl  = document.getElementById('epg-tip-desc');
+    if (epg.now) {
+      titleEl.textContent = epg.now.title || 'Now';
+      timeEl.textContent  = formatEpgTime(epg.now.start) + ' – ' + formatEpgTime(epg.now.stop) + (epg.next ? ' · Next: ' + (epg.next.title || '') + ' ' + formatEpgTime(epg.next.start) + ' – ' + formatEpgTime(epg.next.stop) : '');
+      descEl.textContent  = epg.now.desc || '';
+    } else {
+      titleEl.textContent = 'Next: ' + (epg.next?.title || '');
+      timeEl.textContent  = epg.next ? formatEpgTime(epg.next.start) + ' – ' + formatEpgTime(epg.next.stop) : '';
+      descEl.textContent  = epg.next?.desc || '';
+    }
+    tip.style.display = 'block';
+    const x = e.clientX + 12;
+    const y = e.clientY + 12;
+    const maxX = window.innerWidth  - tip.offsetWidth  - 8;
+    const maxY = window.innerHeight - tip.offsetHeight - 8;
+    tip.style.left = Math.min(x, Math.max(8, maxX)) + 'px';
+    tip.style.top  = Math.min(y, Math.max(8, maxY)) + 'px';
+  }
+  function hideCardEpgTip() {
+    const tip = document.getElementById('epg-tooltip');
+    if (tip) tip.style.display = 'none';
+  }
+  [document.getElementById('page-home'), document.getElementById('page-live')].forEach(container => {
+    if (!container) return;
+    container.addEventListener('mouseenter', (e) => {
+      const card = e.target.closest('.card[data-tvg-id]');
+      if (card) showCardEpgTip(card, e);
+    }, true);
+    container.addEventListener('mouseleave', (e) => {
+      if (!container.contains(e.relatedTarget)) hideCardEpgTip();
+    }, true);
+    container.addEventListener('mousemove', (e) => {
+      const card = e.target.closest('.card[data-tvg-id]');
+      if (card) showCardEpgTip(card, e);
+    }, true);
+  });
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // CARDS
 // ═════════════════════════════════════════════════════════════════════════════
@@ -271,11 +407,12 @@ function liveCard(ch) {
   const epg    = getEPG(ch.tvgId || ch.name);
   const favKey = `live:${ch.name}`;
   const isFav  = S.favs.has(favKey);
+  const tvgId  = esc(ch.tvgId || ch.name);
 
   return `
-    <div class="card" onclick="openDetail(${JSON.stringify(ch).replace(/"/g,'&quot;')}, 'live')">
+    <div class="card" data-tvg-id="${tvgId}" tabindex="-1" onclick="openDetail(${JSON.stringify(ch).replace(/"/g,'&quot;')}, 'live')">
       <div class="card-now-playing">LIVE</div>
-      ${isFav ? '<div class="card-fav active">★</div>' : '<div class="card-fav">☆</div>'}
+      <div class="card-fav${isFav ? ' active' : ''}" onclick="event.stopPropagation();toggleFav('live','${eu(ch.name)}')" title="${isFav ? 'Unfavorite' : 'Favorite'}">${isFav ? '★' : '☆'}</div>
       <div class="card-poster-placeholder wide">
         ${ImageCache.img(ch.logo, '', '📺')}
       </div>
@@ -296,8 +433,8 @@ function mediaCard(item, type) {
   const icon   = type === 'series' ? '📺' : '🎬';
 
   return `
-    <div class="card" onclick="openDetail(${itemJ}, '${type}')">
-      ${isFav ? '<div class="card-fav active">★</div>' : '<div class="card-fav">☆</div>'}
+    <div class="card" tabindex="-1" onclick="openDetail(${itemJ}, '${type}')">
+      <div class="card-fav${isFav ? ' active' : ''}" onclick="event.stopPropagation();toggleFav('${type}','${eu(item.name)}')" title="${isFav ? 'Unfavorite' : 'Favorite'}">${isFav ? '★' : '☆'}</div>
       <div class="card-poster-placeholder">
         ${ImageCache.img(item.logo, '', icon)}
       </div>
@@ -318,7 +455,7 @@ function listItem(item, type) {
   const pct    = hist?.duration ? Math.min(95, (hist.pos / hist.duration) * 100) : 0;
 
   return `
-    <div class="list-item" onclick="openDetail(${itemJ}, '${type}')">
+    <div class="list-item" tabindex="-1" onclick="openDetail(${itemJ}, '${type}')">
       <div class="list-thumb">
         ${ImageCache.img(item.logo, '', isLive ? '📺' : '🎬')}
         ${pct > 2 ? `<div style="position:absolute;bottom:0;left:0;right:0;height:2px;z-index:2;background:rgba(255,255,255,0.1);"><div style="height:100%;width:${pct}%;background:var(--blue);"></div></div>` : ''}
@@ -334,6 +471,65 @@ function listItem(item, type) {
           ${isFav ? '★' : '☆'}
         </button>
       </div>
+    </div>`;
+}
+
+function watchlistCard(item, type) {
+  const itemJ = JSON.stringify(item).replace(/"/g, '&quot;');
+  const icon = type === 'live' ? '📺' : '🎬';
+  return `
+    <div class="card" tabindex="-1" onclick="openDetail(${itemJ}, '${type}')">
+      <div class="card-watchlist-remove" onclick="event.stopPropagation();removeFromWatchlistAndRender('${type}','${eu(item.name)}')" title="Remove from Watchlist">✕</div>
+      ${type === 'live'
+        ? `<div class="card-now-playing">LIVE</div>
+           <div class="card-poster-placeholder wide">${ImageCache.img(item.logo, '', icon)}</div>`
+        : `<div class="card-poster-placeholder">${ImageCache.img(item.logo, '', icon)}</div>`}
+      <div class="card-info">
+        <div class="card-title">${esc(item.name)}</div>
+        <div class="card-meta">${type === 'live' ? esc(catName(item.group, 'live') || '') : (item.year || '') + (item.rating ? ' · ⭐' + parseFloat(item.rating).toFixed(1) : '')}</div>
+      </div>
+    </div>`;
+}
+
+function watchlistListItem(item, type) {
+  const itemJ = JSON.stringify(item).replace(/"/g, '&quot;');
+  const isLive = type === 'live';
+  return `
+    <div class="list-item" tabindex="-1" onclick="openDetail(${itemJ}, '${type}')">
+      <div class="list-thumb">${ImageCache.img(item.logo, '', isLive ? '📺' : '🎬')}</div>
+      <div class="list-info">
+        <div class="list-title">${esc(item.name)}</div>
+        <div class="list-meta">${esc(catName(item.group, isLive ? 'live' : type) || '')}</div>
+      </div>
+      ${isLive ? '<div class="list-live-dot"></div>' : ''}
+      <div class="list-actions">
+        <button class="list-action-btn" title="Remove from Watchlist" onclick="event.stopPropagation();removeFromWatchlistAndRender('${type}','${eu(item.name)}')">✕ Remove</button>
+      </div>
+    </div>`;
+}
+
+async function removeFromWatchlistAndRender(type, encodedName) {
+  const name = decodeURIComponent(encodedName);
+  await removeFromWatchlist(type, name);
+  toast('Removed from watchlist');
+  renderWatchlist();
+}
+
+function continueListItem(item) {
+  const pct      = item.duration ? Math.min(95, (item.pos / item.duration) * 100) : 0;
+  const isLive   = item.type === 'live';
+  const thumb   = item.poster || item.logo;
+  return `
+    <div class="list-item" tabindex="-1" onclick="resumeItem('${eu(item.id)}')">
+      <div class="list-thumb">
+        ${ImageCache.img(thumb, '', isLive ? '📺' : '🎬')}
+        ${pct > 2 ? `<div style="position:absolute;bottom:0;left:0;right:0;height:2px;z-index:2;background:rgba(255,255,255,0.1);"><div style="height:100%;width:${pct}%;background:var(--blue);"></div></div>` : ''}
+      </div>
+      <div class="list-info">
+        <div class="list-title">${esc(item.name)}</div>
+        <div class="list-meta">${isLive ? 'Live TV' : (item.duration ? formatTime(item.duration - item.pos) + ' left' : '')}</div>
+      </div>
+      ${isLive ? '<div class="list-live-dot"></div>' : ''}
     </div>`;
 }
 
@@ -392,6 +588,44 @@ function getFavItems() {
     if (item) out.push({ type, item });
   }
   return out;
+}
+
+function getWatchlistItems() {
+  if (!S.watchlist || !S.watchlist.size) return [];
+  const out = [];
+  for (const key of S.watchlist) {
+    const [type, ...parts] = key.split(':');
+    const name = parts.join(':');
+    let item;
+    if (type === 'live')   item = S.channels.find(c => c.name === name);
+    if (type === 'vod')    item = S.movies.find(m => m.name === name);
+    if (type === 'series') item = S.series.find(s => s.name === name);
+    if (item) out.push({ type, item });
+  }
+  return out;
+}
+
+function renderWatchlist() {
+  const grid = document.getElementById('watchlist-grid');
+  const list = document.getElementById('watchlist-list');
+  const empty = document.getElementById('watchlist-empty');
+  if (!grid) return;
+  const items = getWatchlistItems();
+  const isGrid = S.view.live !== 'list';
+  if (!items.length) {
+    grid.innerHTML = '';
+    if (list) list.innerHTML = '';
+    if (empty) empty.classList.remove('hidden');
+    return;
+  }
+  if (empty) empty.classList.add('hidden');
+  grid.classList.toggle('hidden', !isGrid);
+  if (list) list.classList.toggle('hidden', isGrid);
+  if (isGrid) {
+    grid.innerHTML = items.map(w => watchlistCard(w.item, w.type)).join('');
+  } else {
+    if (list) list.innerHTML = items.map(w => watchlistListItem(w.item, w.type)).join('');
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

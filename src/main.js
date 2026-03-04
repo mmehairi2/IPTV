@@ -54,7 +54,7 @@ async function detectMpv() {
 function probe(exe) {
   return new Promise(res =>
     execFile(exe, ['--version'], { timeout: 5000 },
-      (err, out) => res(!err && out?.includes('mpv') ? exe : null))
+      (err, out) => res(!err && out ? exe : null))
   );
 }
 
@@ -520,6 +520,7 @@ async function findVLC() {
     path.join(process.cwd(), 'vlc.exe'),
   ] : IS_MAC ? [
     '/Applications/VLC.app/Contents/MacOS/VLC',
+    '/applications/VLC.app/Contents/MacOS/VLC',
     '/usr/local/bin/vlc',
     '/opt/homebrew/bin/vlc',
   ] : [

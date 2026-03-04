@@ -66,16 +66,13 @@ function preload(urls, batchSize = 8) {
 }
 
 // img() — renders an image that fills its container.
-// Works in two modes:
-//   1. Container uses position:relative + aspect-ratio (card posters, continue cards)
-//      → img uses position:absolute;inset:0
-//   2. Container uses fixed width+height (list thumbs)
-//      → img also uses position:absolute;inset:0 (works for both)
-// The container must have: position:relative; overflow:hidden; and a defined size.
+// Container must have: position:relative; overflow:hidden; and a defined size.
+// All layout (position, inset, width, height, object-fit) is owned by CSS rules
+// on .card-poster-placeholder img and .list-thumb img — not set inline here.
 function img(url, _unused, fallback) {
   fallback = fallback || '\uD83C\uDFAC';
-  // Fills container absolutely — works for both aspect-ratio and fixed-size parents
-  var IS = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;';
+  // IS: only display:block — container CSS handles position/size/fit
+  var IS = 'display:block;';
   var PS = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--text-3);';
 
   if (!url || url.indexOf('http') !== 0) {

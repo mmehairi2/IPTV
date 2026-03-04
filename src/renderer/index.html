@@ -1,0 +1,2021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stream</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <!-- Fallback if no network: system SF Pro -->
+  <style>
+
+/* ═══════════════════════════════════════════════════════════
+   DESIGN TOKENS
+═══════════════════════════════════════════════════════════ */
+:root {
+  --bg:          #0a0a0a;
+  --bg-2:        #111111;
+  --bg-3:        #1a1a1a;
+  --bg-4:        #242424;
+  --surface:     rgba(255,255,255,0.04);
+  --surface-2:   rgba(255,255,255,0.08);
+  --surface-3:   rgba(255,255,255,0.12);
+  --border:      rgba(255,255,255,0.08);
+  --border-2:    rgba(255,255,255,0.14);
+
+  --text:        #f0f0f0;
+  --text-2:      #999;
+  --text-3:      #555;
+
+  --accent:      #e8f0fe;
+  --blue:        #3a7aff;
+  --blue-glow:   rgba(58, 122, 255, 0.35);
+  --red:         #ff453a;
+  --green:       #30d158;
+  --yellow:      #ffd60a;
+
+  --radius:      12px;
+  --radius-sm:   8px;
+  --radius-xs:   6px;
+  --radius-pill: 999px;
+
+  --nav-w:       220px;
+  --sidebar-w:   300px;
+
+  --font-display: 'SF Pro Display', -apple-system, 'Helvetica Neue', sans-serif;
+  --font-body:    'Inter', -apple-system, sans-serif;
+
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --player-controls-h: 88px;
+  --topbar-h: 52px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RESET
+═══════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 14px; -webkit-font-smoothing: antialiased; }
+button { border: none; background: none; cursor: pointer; color: inherit; font: inherit; }
+input  { border: none; background: none; outline: none; color: inherit; font: inherit; }
+a      { color: inherit; text-decoration: none; }
+ul,ol  { list-style: none; }
+img    { display: block; }
+svg    { display: block; flex-shrink: 0; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 2px; }
+*:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+
+/* ═══════════════════════════════════════════════════════════
+   APP SHELL
+═══════════════════════════════════════════════════════════ */
+#app {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SIDEBAR NAV
+═══════════════════════════════════════════════════════════ */
+#sidebar {
+  width: var(--nav-w);
+  height: 100%;
+  background: rgba(10,10,10,0.92);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  z-index: 20;
+  transition: width 0.3s var(--ease-out), transform 0.3s var(--ease-out);
+  overflow: hidden;
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 18px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-logo-icon {
+  width: 28px; height: 28px;
+  background: var(--blue);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.sidebar-logo-text {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+}
+
+.sidebar-section {
+  padding: 20px 10px 4px;
+}
+.sidebar-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-3);
+  padding: 0 8px;
+  margin-bottom: 4px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 13.5px;
+  font-weight: 500;
+  -webkit-app-region: no-drag;
+  user-select: none;
+}
+.nav-item:hover { background: var(--surface); color: var(--text); }
+.nav-item.active { background: var(--surface-2); color: var(--text); }
+.nav-item svg { flex-shrink: 0; opacity: 0.7; }
+.nav-item.active svg { opacity: 1; }
+.nav-item .nav-label { overflow: hidden; text-overflow: ellipsis; }
+.nav-item .nav-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--blue);
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+}
+
+.sidebar-bottom {
+  margin-top: auto;
+  padding: 12px 10px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MAIN CONTENT AREA
+═══════════════════════════════════════════════════════════ */
+#main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ─── Top Bar ──────────────────────────────────────────────── */
+#topbar {
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(10,10,10,0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+  z-index: 10;
+}
+#topbar > * { -webkit-app-region: no-drag; }
+
+.topbar-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  flex: 1;
+}
+
+.search-wrap {
+  position: relative;
+  flex: 1;
+  max-width: 320px;
+}
+.search-wrap svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-3);
+  pointer-events: none;
+}
+#search-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 7px 14px 7px 34px;
+  font-size: 13px;
+  color: var(--text);
+  transition: border-color 0.2s, background 0.2s;
+}
+#search-input::placeholder { color: var(--text-3); }
+#search-input:focus {
+  border-color: var(--border-2);
+  background: var(--surface-2);
+}
+
+.topbar-btn {
+  width: 32px; height: 32px;
+  border-radius: var(--radius-xs);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-2);
+  transition: background 0.15s, color 0.15s;
+}
+.topbar-btn:hover { background: var(--surface-2); color: var(--text); }
+.topbar-btn.active { background: var(--blue); color: #fff; }
+
+/* ─── Page Content ───────────────────────────────────────────── */
+#page-container {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.page {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 24px;
+  display: none;
+}
+.page.active { display: block; }
+
+/* ═══════════════════════════════════════════════════════════
+   HOME PAGE
+═══════════════════════════════════════════════════════════ */
+.section-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  margin-bottom: 16px;
+}
+.section-subtitle {
+  font-size: 12px;
+  color: var(--text-2);
+  font-weight: 500;
+  margin-left: 8px;
+  letter-spacing: 0;
+  font-family: var(--font-body);
+}
+
+/* Continue Watching */
+.continue-row {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 32px;
+}
+.continue-row::-webkit-scrollbar { height: 0; }
+
+.continue-card {
+  flex-shrink: 0;
+  width: 220px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: transform 0.2s var(--ease-out), border-color 0.2s;
+  position: relative;
+}
+.continue-card:hover { transform: scale(1.02); border-color: var(--border-2); }
+.continue-card-thumb {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  background: var(--bg-4);
+}
+.continue-card-thumb-placeholder {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: var(--bg-4);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-3);
+}
+.continue-card-info { padding: 10px 12px 12px; }
+.continue-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-bottom: 4px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+.continue-card-meta { font-size: 11px; color: var(--text-2); }
+.continue-progress {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 3px;
+  background: rgba(255,255,255,0.1);
+}
+.continue-progress-fill {
+  height: 100%;
+  background: var(--blue);
+  border-radius: 2px;
+}
+
+/* ─── Content Grid ─────────────────────────────────────────── */
+.content-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 32px;
+}
+.content-grid.large {
+  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: transform 0.2s var(--ease-out), border-color 0.2s, box-shadow 0.2s;
+  position: relative;
+  -webkit-app-region: no-drag;
+}
+.card:hover {
+  transform: scale(1.03);
+  border-color: var(--border-2);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  z-index: 1;
+}
+.card-poster {
+  width: 100%;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+  background: var(--bg-4);
+  display: block;
+}
+.card-poster-wide {
+  aspect-ratio: 16/9 !important;
+}
+/* Poster wrapper — enforces aspect ratio and clips the img */
+.card-poster-placeholder {
+  width: 100%;
+  aspect-ratio: 2/3;
+  background: var(--bg-4);
+  display: block;
+  position: relative;
+  overflow: hidden;
+}
+.card-poster-placeholder.wide {
+  aspect-ratio: 16/9;
+}
+/* img or emoji span inside poster wrapper */
+.card-poster-placeholder img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.card-poster-placeholder .poster-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: var(--text-3);
+}
+.card { position: relative; }
+.card-info { padding: 10px 10px 12px; }
+.card-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  margin-bottom: 3px;
+}
+.card-meta { font-size: 11px; color: var(--text-2); }
+.card-now-playing {
+  position: absolute;
+  top: 8px; left: 8px;
+  background: var(--red);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+  letter-spacing: 0.4px;
+}
+.card-fav {
+  position: absolute;
+  top: 8px; right: 8px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.card:hover .card-fav { opacity: 1; }
+.card-fav.active { opacity: 1; color: var(--yellow); }
+.card-progress {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 3px;
+  background: rgba(255,255,255,0.1);
+}
+.card-progress-fill {
+  height: 100%;
+  background: var(--blue);
+}
+.card-epg-label {
+  position: absolute;
+  bottom: 6px; left: 8px; right: 8px;
+  font-size: 10px;
+  color: rgba(255,255,255,0.75);
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(4px);
+  padding: 2px 6px;
+  border-radius: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── List View ─────────────────────────────────────────────── */
+.content-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 24px; }
+.list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+.list-item:hover { background: var(--surface); }
+.list-item.playing { background: var(--surface-2); }
+.list-thumb {
+  width: 48px; height: 48px;
+  border-radius: var(--radius-xs);
+  object-fit: cover;
+  background: var(--bg-4);
+  flex-shrink: 0;
+}
+.list-info { flex: 1; min-width: 0; }
+.list-title { font-size: 13.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-meta  { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+.list-actions { display: flex; gap: 6px; opacity: 0; transition: opacity 0.15s; }
+.list-item:hover .list-actions { opacity: 1; }
+.list-action-btn {
+  width: 28px; height: 28px;
+  border-radius: var(--radius-xs);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-2);
+  transition: background 0.15s, color 0.15s;
+}
+.list-action-btn:hover { background: var(--surface-2); color: var(--text); }
+.list-live-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--red);
+  flex-shrink: 0;
+  box-shadow: 0 0 6px var(--red);
+  animation: pulse-dot 1.5s infinite;
+}
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+/* ─── Pagination ─────────────────────────────────────────────── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px 0 8px;
+}
+.page-btn {
+  height: 32px;
+  min-width: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-xs);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.page-btn:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+.page-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+.page-btn:disabled { opacity: 0.3; cursor: default; }
+
+/* ─── Category Tabs ─────────────────────────────────────────── */
+.cat-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 16px;
+  margin-bottom: 4px;
+}
+.cat-tabs::-webkit-scrollbar { height: 0; }
+.cat-tab {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.cat-tab:hover { color: var(--text); border-color: var(--border-2); }
+.cat-tab.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+/* ═══════════════════════════════════════════════════════════
+   PLAYER PAGE / OVERLAY
+═══════════════════════════════════════════════════════════ */
+#player-page {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  /* Black background — mpv native window overlays on top of this */
+  background: #000;
+  display: none;
+}
+#player-page.active { display: block; }
+
+/* ─── mpv container — fills entire screen ──────────────────── */
+#mpv-container {
+  position: absolute;
+  top: var(--topbar-h, 52px);
+  left: var(--nav-w, 220px);
+  right: 0;
+  bottom: 0;
+  background: transparent; /* mpv sits on top, we're just the coords reference */
+  cursor: none;
+  overflow: hidden;
+  pointer-events: auto;
+}
+#mpv-container.controls-visible { cursor: default; }
+
+/* When in fullscreen mode, override to fill entire screen */
+#player-page:fullscreen #mpv-container {
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+/* Ensure controls overlay sits above mpv */
+#player-controls,
+#player-topbar {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+}
+
+#player-controls button,
+#player-topbar button {
+  pointer-events: auto;
+}
+/* Invisible embed div — only used to measure position for mpv geometry */
+#mpv-embed {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+/* Loading state */
+.player-loading {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: #000;
+  z-index: 2;
+  transition: opacity 0.4s;
+}
+.player-loading.hidden { opacity: 0; pointer-events: none; }
+.player-spinner {
+  width: 40px; height: 40px;
+  border: 2px solid rgba(255,255,255,0.1);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.player-loading-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.8);
+  max-width: 400px;
+  text-align: center;
+}
+.player-loading-sub { font-size: 12px; color: rgba(255,255,255,0.4); }
+
+/* Error state */
+.player-error {
+  position: fixed;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: #000;
+  z-index: 3;
+}
+.player-error.visible { display: flex; }
+.player-error-icon { font-size: 48px; opacity: 0.5; }
+.player-error-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+.player-error-msg { font-size: 13px; color: var(--text-2); text-align: center; max-width: 360px; }
+.player-error-actions { display: flex; gap: 10px; margin-top: 8px; }
+
+/* ─── Controls Overlay ───────────────────────────────────────── */
+#player-controls {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  height: var(--player-controls-h);
+  background: linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.6) 60%, transparent 100%);
+  padding: 0 20px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 10px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.25s var(--ease-out), transform 0.25s var(--ease-out);
+  pointer-events: none;
+  z-index: 200;
+}
+#player-controls.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: all;
+}
+
+/* ─── Seek Bar ───────────────────────────────────────────────── */
+.seek-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.time-display {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255,255,255,0.75);
+  white-space: nowrap;
+  min-width: 84px;
+}
+.time-display.right { text-align: right; }
+
+.seek-track {
+  flex: 1;
+  height: 4px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 2px;
+  position: relative;
+  cursor: pointer;
+  transition: height 0.15s;
+}
+.seek-track:hover { height: 6px; }
+.seek-buffered {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  background: rgba(255,255,255,0.25);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.seek-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  background: #fff;
+  border-radius: 2px;
+  pointer-events: none;
+}
+.seek-thumb {
+  position: absolute;
+  top: 50%;
+  width: 14px; height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 0.15s var(--ease-spring);
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+.seek-track:hover .seek-thumb { transform: translate(-50%, -50%) scale(1); }
+
+/* Live indicator (replaces seek bar for live TV) */
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+}
+.live-dot-small {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: #fff;
+  animation: pulse-dot 1.2s infinite;
+}
+
+/* ─── Control Buttons Row ────────────────────────────────────── */
+.controls-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.controls-center {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 auto;
+}
+.controls-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.ctrl-btn {
+  width: 36px; height: 36px;
+  border-radius: var(--radius-xs);
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,0.8);
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.ctrl-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
+.ctrl-btn.large {
+  width: 44px; height: 44px;
+  border-radius: var(--radius-sm);
+}
+.ctrl-btn.active { color: var(--blue); }
+
+/* Play/Pause */
+#play-pause-btn {
+  width: 48px; height: 48px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 50%;
+  color: #fff;
+  transition: background 0.15s, transform 0.1s;
+}
+#play-pause-btn:hover { background: rgba(255,255,255,0.25); }
+#play-pause-btn:active { transform: scale(0.94); }
+
+/* Channel navigation (live TV) */
+.ch-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 36px;
+  border-radius: var(--radius-xs);
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.08);
+  transition: background 0.15s, color 0.15s;
+}
+.ch-nav-btn:hover { background: rgba(255,255,255,0.16); color: #fff; }
+
+/* Volume */
+.volume-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.volume-track {
+  width: 72px;
+  height: 4px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 2px;
+  position: relative;
+  cursor: pointer;
+}
+.volume-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  background: #fff;
+  border-radius: 2px;
+}
+
+/* Track selector dropdown */
+.track-selector {
+  position: relative;
+}
+.track-selector-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  background: rgba(28,28,28,0.97);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  overflow: hidden;
+  display: none;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  z-index: 20;
+}
+.track-selector-menu.open { display: block; }
+.track-menu-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-3);
+  padding: 10px 14px 6px;
+}
+.track-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.track-menu-item:hover { background: var(--surface); }
+.track-menu-item.active { color: var(--blue); }
+.track-menu-item .check { margin-left: auto; opacity: 0; }
+.track-menu-item.active .check { opacity: 1; }
+
+/* ─── Player Top Bar (title + back) ─────────────────────────── */
+#player-topbar {
+  position: fixed;
+  left: 0; right: 0; top: 0;
+  height: 64px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, transparent 100%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.25s var(--ease-out), transform 0.25s var(--ease-out);
+  pointer-events: none;
+  z-index: 200;
+}
+#player-topbar.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: all;
+}
+
+.player-back-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-xs);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.85);
+  background: rgba(255,255,255,0.1);
+  backdrop-filter: blur(8px);
+  transition: background 0.15s;
+}
+.player-back-btn:hover { background: rgba(255,255,255,0.18); }
+
+.player-now-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.player-now-sub {
+  font-size: 12px;
+  color: rgba(255,255,255,0.55);
+}
+
+/* ─── Stream Info Overlay ────────────────────────────────────── */
+#stream-info {
+  position: fixed;
+  top: 70px; right: 16px;
+  background: rgba(0,0,0,0.75);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(12px);
+  padding: 10px 14px;
+  font-size: 11px;
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+  color: rgba(255,255,255,0.7);
+  line-height: 1.8;
+  display: none;
+  z-index: 11;
+  min-width: 180px;
+}
+#stream-info.visible { display: block; }
+.info-row { display: flex; justify-content: space-between; gap: 16px; }
+.info-label { color: rgba(255,255,255,0.35); }
+.info-value { color: rgba(255,255,255,0.8); font-weight: 600; }
+
+/* ─── mpv Not Found / VLC Fallback Modal ─────────────────────── */
+#mpv-missing-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(8px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+#mpv-missing-modal.open { display: flex; }
+.modal-box {
+  background: var(--bg-2);
+  border: 1px solid var(--border-2);
+  border-radius: 18px;
+  padding: 28px 32px;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+}
+.modal-icon { font-size: 40px; margin-bottom: 16px; }
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  margin-bottom: 10px;
+}
+.modal-body { font-size: 13.5px; color: var(--text-2); line-height: 1.6; margin-bottom: 20px; }
+.modal-code {
+  background: var(--bg-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 8px 12px;
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+  font-size: 12px;
+  margin: 8px 0;
+  color: var(--accent);
+}
+.modal-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ═══════════════════════════════════════════════════════════
+   BUTTONS
+═══════════════════════════════════════════════════════════ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--blue); color: #fff; }
+.btn-primary:hover { background: #5590ff; }
+.btn-secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--surface-3); }
+.btn-danger { background: rgba(255,69,58,0.15); color: var(--red); border: 1px solid rgba(255,69,58,0.25); }
+.btn-danger:hover { background: rgba(255,69,58,0.25); }
+.btn-ghost { color: var(--text-2); }
+.btn-ghost:hover { color: var(--text); background: var(--surface); }
+.btn-sm { padding: 5px 12px; font-size: 12px; border-radius: var(--radius-xs); }
+.btn-icon { padding: 8px; }
+
+/* Resume button */
+.resume-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  background: var(--blue);
+  color: #fff;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.15s, transform 0.1s;
+}
+.resume-btn:hover { background: #5590ff; }
+.resume-btn:active { transform: scale(0.97); }
+
+/* ═══════════════════════════════════════════════════════════
+   DETAIL PANEL (slide-in from right — movies/series)
+═══════════════════════════════════════════════════════════ */
+#detail-panel {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: min(480px, 90vw);
+  background: var(--bg-2);
+  border-left: 1px solid var(--border);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.35s var(--ease-out);
+  overflow: hidden;
+}
+#detail-panel.open { transform: translateX(0); }
+
+.detail-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 49;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.detail-backdrop.open { opacity: 1; pointer-events: all; }
+
+.detail-hero {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  background: var(--bg-4);
+  flex-shrink: 0;
+}
+.detail-hero-placeholder {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: var(--bg-4);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+.detail-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+.detail-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  margin-bottom: 6px;
+}
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+  margin-bottom: 14px;
+  align-items: center;
+}
+.detail-meta .pill {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+  font-size: 11px;
+}
+.detail-desc {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.65;
+  margin-bottom: 20px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+}
+.detail-desc.expanded { -webkit-line-clamp: unset; }
+.detail-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+/* Episode Browser */
+.season-tabs { display: flex; gap: 4px; margin-bottom: 12px; overflow-x: auto; }
+.season-tabs::-webkit-scrollbar { height: 0; }
+.season-tab {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.season-tab.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+.episode-list { display: flex; flex-direction: column; gap: 2px; }
+.episode-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+.episode-item:hover { background: var(--surface); }
+.episode-thumb {
+  width: 80px; height: 45px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--bg-4);
+  flex-shrink: 0;
+}
+.episode-num {
+  font-size: 10px;
+  color: var(--text-3);
+  font-weight: 700;
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.episode-info { flex: 1; min-width: 0; }
+.episode-title { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.episode-meta  { font-size: 11px; color: var(--text-2); margin-top: 1px; }
+.episode-progress-bar {
+  position: absolute;
+  bottom: 0; left: 38px; right: 8px;
+  height: 2px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 1px;
+}
+.episode-progress-fill {
+  height: 100%;
+  background: var(--blue);
+  border-radius: 1px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   EPG (will be fleshed out in Phase 3, placeholder layout)
+═══════════════════════════════════════════════════════════ */
+#epg-grid-container {
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+.epg-timeline-header {
+  display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding-left: 160px;  /* channel name column */
+  height: 36px;
+  align-items: center;
+}
+.epg-channel-col {
+  width: 160px;
+  flex-shrink: 0;
+  position: sticky;
+  left: 0;
+  background: var(--bg);
+  z-index: 4;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SETTINGS PAGE
+═══════════════════════════════════════════════════════════ */
+.settings-section {
+  max-width: 600px;
+  margin-bottom: 36px;
+}
+.settings-section-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 11px;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 2px;
+  gap: 16px;
+}
+.settings-row:first-of-type { border-radius: var(--radius-sm) var(--radius-sm) 4px 4px; }
+.settings-row:last-of-type  { border-radius: 4px 4px var(--radius-sm) var(--radius-sm); margin-bottom: 0; }
+.settings-row:only-of-type  { border-radius: var(--radius-sm); }
+.settings-label { font-size: 13.5px; font-weight: 500; }
+.settings-sublabel { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+.settings-value { font-size: 13px; color: var(--text-2); }
+
+/* Toggle */
+.toggle {
+  width: 44px; height: 26px;
+  background: var(--bg-4);
+  border-radius: 13px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.toggle.on { background: var(--blue); }
+.toggle-knob {
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 20px; height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  transition: transform 0.2s var(--ease-spring);
+}
+.toggle.on .toggle-knob { transform: translateX(18px); }
+
+/* Input field */
+.settings-input {
+  background: var(--bg-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--text);
+  width: 220px;
+  transition: border-color 0.15s;
+}
+.settings-input:focus { border-color: var(--blue); }
+
+/* ═══════════════════════════════════════════════════════════
+   EMPTY & LOADING STATES
+═══════════════════════════════════════════════════════════ */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 60px 20px;
+  color: var(--text-2);
+  text-align: center;
+}
+.empty-icon { font-size: 40px; opacity: 0.3; margin-bottom: 4px; }
+.empty-title { font-size: 16px; font-weight: 600; color: var(--text); }
+.empty-sub   { font-size: 13px; }
+
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-3) 0%, var(--bg-4) 50%, var(--bg-3) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: var(--radius-xs);
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+/* ═══════════════════════════════════════════════════════════
+   TOAST NOTIFICATIONS
+═══════════════════════════════════════════════════════════ */
+#toast-container {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 300;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: rgba(36,36,36,0.96);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-pill);
+  backdrop-filter: blur(16px);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  animation: toast-in 0.3s var(--ease-spring) forwards;
+  max-width: 360px;
+  pointer-events: all;
+}
+.toast.out { animation: toast-out 0.25s ease forwards; }
+.toast-icon { font-size: 15px; flex-shrink: 0; }
+.toast.success .toast-icon { filter: none; }
+.toast.error { border-color: rgba(255,69,58,0.35); }
+@keyframes toast-in  { from { opacity: 0; transform: translateY(12px) scale(0.95); } to { opacity: 1; transform: none; } }
+@keyframes toast-out { to   { opacity: 0; transform: translateY(8px) scale(0.95); } }
+
+/* ═══════════════════════════════════════════════════════════
+   KEYBOARD SHORTCUTS SHEET
+═══════════════════════════════════════════════════════════ */
+#shortcuts-modal {
+  position: fixed; inset: 0; z-index: 250;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(8px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+#shortcuts-modal.open { display: flex; }
+.shortcuts-box {
+  background: var(--bg-2);
+  border: 1px solid var(--border-2);
+  border-radius: 18px;
+  padding: 28px 32px;
+  width: min(520px, 90vw);
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.shortcuts-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 20px;
+}
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.shortcut-row:last-child { border-bottom: none; }
+.shortcut-action { color: var(--text-2); }
+.shortcut-keys { display: flex; gap: 4px; }
+.kbd {
+  background: var(--bg-4);
+  border: 1px solid var(--border-2);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+  font-size: 11px;
+  color: var(--text);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   UTILITY
+═══════════════════════════════════════════════════════════ */
+.hidden     { display: none !important; }
+.sr-only    { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+.truncate   { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flex       { display: flex; }
+.items-center { align-items: center; }
+.gap-2      { gap: 8px; }
+.mt-1       { margin-top: 4px; }
+.mt-2       { margin-top: 8px; }
+.text-dim   { color: var(--text-2); }
+
+/* ═══════════════════════════════════════════════════════════
+   SCROLLBAR IN PLAYER (custom for detail panel only)
+═══════════════════════════════════════════════════════════ */
+#detail-panel::-webkit-scrollbar        { width: 4px; }
+#detail-panel::-webkit-scrollbar-thumb  { background: var(--border-2); border-radius: 2px; }
+
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════
+     APP SHELL
+════════════════════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- ── Sidebar ───────────────────────────────────────── -->
+  <nav id="sidebar" role="navigation" aria-label="Main navigation">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M2 8C2 4.686 4.686 2 8 2s6 2.686 6 6-2.686 6-6 6-6-2.686-6-6Z" fill="rgba(255,255,255,0.2)"/>
+          <path d="M6 5.5l5 2.5-5 2.5V5.5Z" fill="#fff"/>
+        </svg>
+      </div>
+      <span class="sidebar-logo-text">Stream</span>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Browse</div>
+      <div class="nav-item active" data-page="home">
+        <!-- Home -->
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8.707 1.5a1 1 0 00-1.414 0L1.5 7.293A1 1 0 002.207 9H3v5a1 1 0 001 1h2.5a.5.5 0 00.5-.5V11h2v3.5a.5.5 0 00.5.5H12a1 1 0 001-1V9h.793a1 1 0 00.707-1.707L8.707 1.5z"/></svg>
+        <span class="nav-label">Home</span>
+      </div>
+      <div class="nav-item" data-page="live">
+        <!-- TV -->
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 2A1.5 1.5 0 001 3.5v7A1.5 1.5 0 002.5 12H6l-.5 2H4a.5.5 0 000 1h8a.5.5 0 000-1h-1.5L10 12h3.5A1.5 1.5 0 0015 10.5v-7A1.5 1.5 0 0013.5 2h-11z"/></svg>
+        <span class="nav-label">Live TV</span>
+        <span class="nav-badge" id="live-count-badge" style="display:none">0</span>
+      </div>
+      <div class="nav-item" data-page="movies">
+        <!-- Film -->
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M0 1a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H1a1 1 0 01-1-1V1zm4 0v6h8V1H4zm8 8H4v6h8V9zM1 1v2h2V1H1zm2 3H1v2h2V4zM1 7v2h2V7H1zm2 3H1v2h2v-2zm-2 3v2h2v-2H1zM15 1h-2v2h2V1zm-2 3v2h2V4h-2zm2 3h-2v2h2V7zm-2 3v2h2v-2h-2zm2 3h-2v2h2v-2z"/></svg>
+        <span class="nav-label">Movies</span>
+      </div>
+      <div class="nav-item" data-page="series">
+        <!-- Layers -->
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8.235 1.559a.5.5 0 00-.47 0l-7.5 4a.5.5 0 000 .882L3.188 8 .264 9.559a.5.5 0 000 .882l7.5 4a.5.5 0 00.47 0l7.5-4a.5.5 0 000-.882L12.813 8l2.922-1.559a.5.5 0 000-.882l-7.5-4z"/></svg>
+        <span class="nav-label">Series</span>
+      </div>
+      <div class="nav-item" data-page="favorites">
+        <!-- Heart -->
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.314C12.438-3.248 23.534 4.735 8 15-7.534 4.736 3.562-3.248 8 1.314z"/></svg>
+        <span class="nav-label">Favorites</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Guide</div>
+      <div class="nav-item" data-page="epg">
+        <!-- Calendar -->
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 0a.5.5 0 01.5.5V1h8V.5a.5.5 0 011 0V1h1a2 2 0 012 2v11a2 2 0 01-2 2H2a2 2 0 01-2-2V3a2 2 0 012-2h1V.5a.5.5 0 01.5-.5zM1 4v10a1 1 0 001 1h12a1 1 0 001-1V4H1z"/></svg>
+        <span class="nav-label">TV Guide</span>
+      </div>
+    </div>
+
+    <div class="sidebar-bottom">
+      <div class="nav-item" data-page="settings">
+        <!-- Gear -->
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 4.754a3.246 3.246 0 100 6.492 3.246 3.246 0 000-6.492zM5.754 8a2.246 2.246 0 114.492 0 2.246 2.246 0 01-4.492 0z"/><path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 01-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 01-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 01.52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 011.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 011.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 01.52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 01-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 01-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 002.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 001.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 00-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 00-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 00-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 003.06 9.377l-.318-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 004.175 4.82l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 002.692-1.115l.094-.319z"/></svg>
+        <span class="nav-label">Settings</span>
+      </div>
+      <div class="nav-item" id="refresh-btn">
+        <!-- Arrow repeat -->
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M11.534 7h3.932a.25.25 0 01.192.41l-1.966 2.36a.25.25 0 01-.384 0l-1.966-2.36a.25.25 0 01.192-.41zm-11 2h3.932a.25.25 0 00.192-.41L2.692 6.23a.25.25 0 00-.384 0L.342 8.59A.25.25 0 00.534 9z"/><path d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 11-.771-.636A6.002 6.002 0 0113.917 7H12.9A5.002 5.002 0 008 3zM3.1 9a5.002 5.002 0 008.757 2.182.5.5 0 11.771.636A6.002 6.002 0 012.083 9H3.1z"/></svg>
+        <span class="nav-label">Refresh</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Main ──────────────────────────────────────────── -->
+  <div id="main">
+
+    <!-- Top Bar -->
+    <header id="topbar">
+      <span class="topbar-title" id="topbar-title">Home</span>
+
+      <div class="search-wrap">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M11.742 10.344a6.5 6.5 0 10-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 001.415-1.414l-3.85-3.85a1.007 1.007 0 00-.115-.099zm-5.242 1.656a5.5 5.5 0 110-11 5.5 5.5 0 010 11z"/>
+        </svg>
+        <input type="text" id="search-input" placeholder="Search…" autocomplete="off" spellcheck="false" />
+      </div>
+
+      <!-- View toggle -->
+      <button class="topbar-btn active" id="grid-view-btn" title="Grid view" aria-label="Grid view">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 012.5 1h3A1.5 1.5 0 017 2.5v3A1.5 1.5 0 015.5 7h-3A1.5 1.5 0 011 5.5v-3zm8 0A1.5 1.5 0 0110.5 1h3A1.5 1.5 0 0115 2.5v3A1.5 1.5 0 0113.5 7h-3A1.5 1.5 0 019 5.5v-3zm-8 8A1.5 1.5 0 012.5 9h3A1.5 1.5 0 017 10.5v3A1.5 1.5 0 015.5 15h-3A1.5 1.5 0 011 13.5v-3zm8 0A1.5 1.5 0 0110.5 9h3A1.5 1.5 0 0115 10.5v3A1.5 1.5 0 0113.5 15h-3A1.5 1.5 0 019 13.5v-3z"/></svg>
+      </button>
+      <button class="topbar-btn" id="list-view-btn" title="List view" aria-label="List view">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 12a.5.5 0 01.5-.5h10a.5.5 0 010 1H3a.5.5 0 01-.5-.5zm0-4a.5.5 0 01.5-.5h10a.5.5 0 010 1H3a.5.5 0 01-.5-.5zm0-4a.5.5 0 01.5-.5h10a.5.5 0 010 1H3a.5.5 0 01-.5-.5z"/></svg>
+      </button>
+
+      <!-- Keyboard shortcut hint -->
+      <button class="topbar-btn" id="shortcuts-btn" title="Keyboard shortcuts (?)">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M14 3a1 1 0 011 1v8a1 1 0 01-1 1H2a1 1 0 01-1-1V4a1 1 0 011-1h12zM2 2a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2H2z"/><path d="M13 6a.5.5 0 01-.5.5h-1a.5.5 0 010-1h1A.5.5 0 0113 6zM10 6a.5.5 0 01-.5.5h-1a.5.5 0 010-1h1A.5.5 0 0110 6zM7 6a.5.5 0 01-.5.5h-1a.5.5 0 010-1h1A.5.5 0 017 6zM4 6a.5.5 0 01-.5.5h-1a.5.5 0 010-1h1A.5.5 0 014 6zM3.5 9.5A.5.5 0 014 9h8a.5.5 0 01.5.5v1a.5.5 0 01-.5.5H4a.5.5 0 01-.5-.5v-1z"/></svg>
+      </button>
+    </header>
+
+    <!-- Pages -->
+    <div id="page-container">
+
+      <!-- HOME -->
+      <section class="page active" id="page-home" data-title="Home">
+        <div id="continue-watching-section">
+          <div class="section-title">Continue Watching</div>
+          <div class="continue-row" id="continue-row">
+            <!-- populated by app.js -->
+          </div>
+        </div>
+        <div class="section-title">Recently Added <span class="section-subtitle">Live TV</span></div>
+        <div class="content-grid" id="home-live-grid"></div>
+        <div class="section-title">Movies</div>
+        <div class="content-grid large" id="home-movies-grid"></div>
+      </section>
+
+      <!-- LIVE TV -->
+      <section class="page" id="page-live" data-title="Live TV">
+        <div class="cat-tabs" id="live-cat-tabs"></div>
+        <div id="live-content">
+          <div class="content-grid" id="live-grid"></div>
+          <div class="content-list hidden" id="live-list"></div>
+        </div>
+        <div class="pagination" id="live-pagination"></div>
+      </section>
+
+      <!-- MOVIES -->
+      <section class="page" id="page-movies" data-title="Movies">
+        <div class="cat-tabs" id="movies-cat-tabs"></div>
+        <div id="movies-content">
+          <div class="content-grid large" id="movies-grid"></div>
+          <div class="content-list hidden" id="movies-list"></div>
+        </div>
+        <div class="pagination" id="movies-pagination"></div>
+      </section>
+
+      <!-- SERIES -->
+      <section class="page" id="page-series" data-title="Series">
+        <div class="cat-tabs" id="series-cat-tabs"></div>
+        <div id="series-content">
+          <div class="content-grid large" id="series-grid"></div>
+          <div class="content-list hidden" id="series-list"></div>
+        </div>
+        <div class="pagination" id="series-pagination"></div>
+      </section>
+
+      <!-- FAVORITES -->
+      <section class="page" id="page-favorites" data-title="Favorites">
+        <div class="cat-tabs">
+          <button class="cat-tab active" data-fav-type="all">All</button>
+          <button class="cat-tab" data-fav-type="live">Live TV</button>
+          <button class="cat-tab" data-fav-type="movie">Movies</button>
+          <button class="cat-tab" data-fav-type="series">Series</button>
+        </div>
+        <div class="content-grid large" id="favorites-grid"></div>
+        <div id="favorites-empty" class="empty-state hidden">
+          <div class="empty-icon">♡</div>
+          <div class="empty-title">No favorites yet</div>
+          <div class="empty-sub">Long-press or right-click any item to add it</div>
+        </div>
+      </section>
+
+      <!-- TV GUIDE / EPG -->
+      <section class="page" id="page-epg" data-title="TV Guide">
+        <div id="epg-controls" style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+          <button class="btn btn-secondary btn-sm" data-zoom="1">1 hr</button>
+          <button class="btn btn-secondary btn-sm active" data-zoom="3">3 hr</button>
+          <button class="btn btn-secondary btn-sm" data-zoom="6">6 hr</button>
+          <button class="btn btn-secondary btn-sm" id="epg-now-btn">Now</button>
+          <div class="search-wrap" style="margin-left:auto;max-width:220px;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#555;pointer-events:none"><path d="M11.742 10.344a6.5 6.5 0 10-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 001.415-1.414l-3.85-3.85a1.007 1.007 0 00-.115-.099zm-5.242 1.656a5.5 5.5 0 110-11 5.5 5.5 0 010 11z"/></svg>
+            <input type="text" id="epg-search" placeholder="Filter channels…" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-pill);padding:7px 14px 7px 34px;font-size:13px;color:var(--text);" />
+          </div>
+        </div>
+        <div id="epg-grid-container">
+          <!-- Built by app.js EPG renderer -->
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section class="page" id="page-settings" data-title="Settings">
+
+        <div class="settings-section">
+          <div class="settings-section-title">Source</div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Server URL</div>
+              <div class="settings-sublabel">Xtream Codes panel URL</div>
+            </div>
+            <input class="settings-input" id="cfg-server" type="text" placeholder="http://server:port" />
+          </div>
+          <div class="settings-row">
+            <div><div class="settings-label">Username</div></div>
+            <input class="settings-input" id="cfg-user" type="text" placeholder="username" />
+          </div>
+          <div class="settings-row">
+            <div><div class="settings-label">Password</div></div>
+            <input class="settings-input" id="cfg-pass" type="password" placeholder="password" />
+          </div>
+          <div class="settings-row" style="margin-top:8px;">
+            <span></span>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-secondary btn-sm" id="test-connection-btn">Test</button>
+              <button class="btn btn-primary btn-sm" id="save-source-btn">Save & Reload</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">Player</div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">mpv path</div>
+              <div class="settings-sublabel" id="mpv-detected-path">Auto-detecting…</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="detect-mpv-btn">Detect</button>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Hardware decoding</div>
+              <div class="settings-sublabel">GPU accelerated (recommended)</div>
+            </div>
+            <div class="toggle on" id="hwdec-toggle"><div class="toggle-knob"></div></div>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Default volume</div>
+            </div>
+            <input class="settings-input" id="cfg-volume" type="number" min="0" max="100" value="85" style="width:80px;" />
+          </div>
+        </div>
+        
+        <div class="settings-section">
+          <div class="settings-section-title">Player Selection</div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Default Player</div>
+              <div class="settings-sublabel">Choose which player to use for streams</div>
+            </div>
+            <div class="settings-item-control">
+              <select id="player-select" class="settings-select">
+                <option value="mpv">mpv (Built-in, recommended)</option>
+                <option value="vlc">VLC (External)</option>
+              </select>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">VLC Status</div>
+              <div class="settings-sublabel" id="vlc-status">Checking...</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="check-vlc-btn" onclick="checkVLCStatus()">Check Again</button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">EPG</div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">EPG URL</div>
+              <div class="settings-sublabel">XMLTV format</div>
+            </div>
+            <input class="settings-input" id="cfg-epg" type="text" placeholder="http://…/epg.xml" />
+          </div>
+          <div class="settings-row">
+            <div><div class="settings-label">Auto-refresh EPG</div></div>
+            <div class="toggle on" id="epg-auto-toggle"><div class="toggle-knob"></div></div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">Data</div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Export settings</div>
+              <div class="settings-sublabel">Backup source, favorites & history</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="export-btn">Export JSON</button>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Import settings</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="import-btn">Import JSON</button>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Clear all data</div>
+              <div class="settings-sublabel">Wipes IndexedDB, history, favorites</div>
+            </div>
+            <button class="btn btn-danger btn-sm" id="clear-data-btn">Clear</button>
+          </div>
+        </div>
+
+      </section>
+
+    </div><!-- /page-container -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- ════════════════════════════════════════════════════════
+     PLAYER (fullscreen overlay)
+════════════════════════════════════════════════════════ -->
+<div id="player-page" role="region" aria-label="Video player">
+
+  <!-- mpv video embed area -->
+  <div id="mpv-container">
+    <div id="mpv-embed"></div>
+
+    <!-- Poster backdrop (blurred, shown while loading) -->
+    <div id="player-poster-backdrop" style="display:none;position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(20px) brightness(0.3);transform:scale(1.05);pointer-events:none;z-index:1;"></div>
+    <div class="player-loading" id="player-loading">
+      <div class="player-spinner"></div>
+      <div class="player-loading-title" id="player-loading-title">Loading stream…</div>
+      <div class="player-loading-sub" id="player-loading-sub"></div>
+    </div>
+
+    <!-- Error -->
+    <div class="player-error" id="player-error">
+      <div class="player-error-icon">⚠️</div>
+      <div class="player-error-title">Playback failed</div>
+      <div class="player-error-msg" id="player-error-msg">Unable to play this stream.</div>
+      <div class="player-error-actions">
+        <button class="btn btn-secondary" id="error-retry-btn">Retry</button>
+        <button class="btn btn-ghost" id="error-vlc-btn">Open in VLC</button>
+        <button class="btn btn-ghost" id="error-back-btn">Go back</button>
+      </div>
+    </div>
+
+    <!-- Stream info overlay -->
+    <div id="stream-info">
+      <div class="info-row"><span class="info-label">Resolution</span><span class="info-value" id="si-res">—</span></div>
+      <div class="info-row"><span class="info-label">Codec</span><span class="info-value" id="si-codec">—</span></div>
+      <div class="info-row"><span class="info-label">FPS</span><span class="info-value" id="si-fps">—</span></div>
+      <div class="info-row"><span class="info-label">Audio</span><span class="info-value" id="si-audio">—</span></div>
+      <div class="info-row"><span class="info-label">Bitrate</span><span class="info-value" id="si-bitrate">—</span></div>
+    </div>
+
+    <!-- Player top bar -->
+    <div id="player-topbar">
+      <button class="player-back-btn" id="player-back-btn">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M15 8a.5.5 0 00-.5-.5H2.707l3.147-3.146a.5.5 0 10-.708-.708l-4 4a.5.5 0 000 .708l4 4a.5.5 0 00.708-.708L2.707 8.5H14.5A.5.5 0 0015 8z"/></svg>
+        Back
+      </button>
+      <div>
+        <div class="player-now-title" id="player-now-title"></div>
+        <div class="player-now-sub" id="player-now-sub"></div>
+      </div>
+      <button class="ctrl-btn" id="stream-info-btn" title="Stream info (I)">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 15A7 7 0 108 1a7 7 0 000 14zm0 1A8 8 0 118 0a8 8 0 010 16z"/><path d="M5.255 5.786a.237.237 0 00.241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 00.25.246h.811a.25.25 0 00.25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286zm1.557 5.763c0 .533.425.927 1.01.927.609 0 1.028-.394 1.028-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94z"/></svg>
+      </button>
+      <!-- Stream health dot -->
+      <div id="stream-health-dot" title="Stream buffer health" style="width:8px;height:8px;border-radius:50%;background:var(--text-3);flex-shrink:0;transition:background 0.5s;"></div>
+    </div>
+
+    <!-- Controls overlay -->
+    <div id="player-controls">
+
+      <!-- Seek row (hidden for live TV) -->
+      <div class="seek-row" id="seek-row">
+        <span class="time-display" id="time-current">0:00</span>
+        <div class="seek-track" id="seek-track" role="slider" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="seek-buffered" id="seek-buffered" style="width:0%"></div>
+          <div class="seek-fill"     id="seek-fill"     style="width:0%"></div>
+          <div class="seek-thumb"    id="seek-thumb"    style="left:0%"></div>
+        </div>
+        <span class="time-display right" id="time-total">0:00</span>
+      </div>
+
+      <!-- Live row (shown for live TV) -->
+      <div class="seek-row hidden" id="live-row">
+        <div class="live-badge"><div class="live-dot-small"></div>LIVE</div>
+        <span id="live-now-epg" style="font-size:12px;color:rgba(255,255,255,0.6);margin-left:8px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+        <span id="live-next-epg" style="font-size:11px;color:rgba(255,255,255,0.35);"></span>
+      </div>
+
+      <!-- Buttons row -->
+      <div class="controls-row">
+
+        <!-- Left: channel nav (live) / prev episode (VOD) -->
+        <button class="ch-nav-btn" id="prev-btn" title="Previous channel / episode">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M11.536 14.01A8.473 8.473 0 009 15v-1.7c.73-.23 1.41-.583 2-1.047l.536.757zm3.058-.204a8.516 8.516 0 01-1.403 1.403l-.736-.527a7.323 7.323 0 001.202-1.202l.937.326zm.769-1.919a8.476 8.476 0 00.498-2.302l-.894-.065a7.47 7.47 0 01-.44 2.03l.836.337zm.499-3.302A8.49 8.49 0 0015.5 8h-.004v-.002a8.49 8.49 0 00-.151-1.603l.897-.16C16.32 6.819 16.5 7.4 16.5 8h-1v.002a7.47 7.47 0 01-.139 1.441l-.899-.156z"/><path d="M8 1a7 7 0 100 14A7 7 0 008 1zM0 8a8 8 0 1116 0A8 8 0 010 8z"/><path d="M6.5 5.5l-4 4 4 4V5.5zm3 0v8l4-4-4-4z"/></svg>
+          Prev
+        </button>
+
+        <!-- Rewind 10s (VOD only) -->
+        <button class="ctrl-btn" id="rewind-btn" title="Rewind 10s (←)">
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M.5 3.5A.5.5 0 011 4v3.248l6.267-3.636c.54-.313 1.232.066 1.232.696v2.94l6.267-3.636c.54-.313 1.232.066 1.232.696v7.384c0 .63-.692 1.009-1.232.696L8.499 8.752v2.94c0 .63-.692 1.009-1.232.696L1 8.752V12a.5.5 0 01-1 0V4a.5.5 0 01.5-.5z"/></svg>
+        </button>
+
+        <!-- Play / Pause -->
+        <button id="play-pause-btn" title="Play/Pause (Space)" aria-label="Play/Pause">
+          <!-- Icon swapped by JS -->
+          <svg id="play-icon" width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M10.804 8L5 4.633v6.734L10.804 8zm.792-.696a.802.802 0 010 1.392l-6.363 3.692C4.713 12.69 4 12.345 4 11.692V4.308c0-.653.713-.998 1.233-.696l6.363 3.692z"/></svg>
+          <svg id="pause-icon" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style="display:none"><path d="M5.5 3.5A1.5 1.5 0 017 5v6a1.5 1.5 0 01-3 0V5a1.5 1.5 0 011.5-1.5zm5 0A1.5 1.5 0 0112 5v6a1.5 1.5 0 01-3 0V5a1.5 1.5 0 011.5-1.5z"/></svg>
+        </button>
+
+        <!-- Fast-forward 10s (VOD only) -->
+        <button class="ctrl-btn" id="ffwd-btn" title="Forward 10s (→)">
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M15.5 3.5a.5.5 0 01.5.5v8a.5.5 0 01-1 0V8.752l-6.267 3.636c-.54.313-1.232-.066-1.232-.696v-2.94l-6.267 3.636C.693 12.69 0 12.345 0 11.692V4.308c0-.653.693-.998 1.233-.696L7.5 7.248V4.308c0-.653.693-.998 1.233-.696L15 7.248V4a.5.5 0 01.5-.5z"/></svg>
+        </button>
+
+        <!-- Next channel / episode -->
+        <button class="ch-nav-btn" id="next-btn" title="Next channel / episode">
+          Next
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l4 4-4 4V4zm0 8l4-4-4-4v8z" style="display:none"/><path d="M5.5 5.5l4 2.5-4 2.5V5.5zm0 6l4-2.5-4-2.5v5zM5 3.5A.5.5 0 015.5 3h5a.5.5 0 010 1h-5A.5.5 0 015 3.5z" style="display:none"/><path d="M6 3l4 5-4 5V3z"/></svg>
+        </button>
+
+        <!-- Right controls -->
+        <div class="controls-right">
+
+          <!-- Volume -->
+          <div class="volume-wrap">
+            <button class="ctrl-btn" id="mute-btn" title="Mute (M)">
+              <svg id="vol-icon" width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M11.536 14.01A8.473 8.473 0 009 15v-1.7c.73-.23 1.41-.583 2-1.047l.536.757zm3.058-.204a8.516 8.516 0 01-1.403 1.403l-.736-.527a7.323 7.323 0 001.202-1.202l.937.326zm.769-1.919a8.476 8.476 0 00.498-2.302l-.894-.065a7.47 7.47 0 01-.44 2.03l.836.337zm.499-3.302A8.49 8.49 0 0015.5 8h-.004v-.002a8.49 8.49 0 00-.151-1.603l.897-.16C16.32 6.819 16.5 7.4 16.5 8h-1v.002a7.47 7.47 0 01-.139 1.441l-.899-.156z"/><path d="M6 3a.5.5 0 01.5.5v9a.5.5 0 01-1 0v-9A.5.5 0 016 3zm-3.5.5a.5.5 0 011 0v9a.5.5 0 01-1 0v-9zm7 2a.5.5 0 011 0v5a.5.5 0 01-1 0v-5zm3.5-1a.5.5 0 01.5.5v7a.5.5 0 01-1 0v-7a.5.5 0 01.5-.5z"/></svg>
+            </button>
+            <div class="volume-track" id="volume-track">
+              <div class="volume-fill" id="volume-fill" style="width:85%"></div>
+            </div>
+          </div>
+
+          <!-- Audio track -->
+          <div class="track-selector" id="audio-track-selector">
+            <button class="ctrl-btn" id="audio-track-btn" title="Audio tracks">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M11.536 14.01A8.473 8.473 0 019 15v-1.7a6.969 6.969 0 002-.047l.536.757zm3.058-.204a8.516 8.516 0 01-1.403 1.403l-.736-.527a7.323 7.323 0 001.202-1.202l.937.326zm.769-1.919a8.476 8.476 0 00.498-2.302l-.894-.065a7.47 7.47 0 01-.44 2.03l.836.337zM8 3a5 5 0 015 5 5 5 0 01-5 5A5 5 0 013 8a5 5 0 015-5zm0 1a4 4 0 100 8A4 4 0 008 4zm0 1a3 3 0 110 6 3 3 0 010-6zm0 1a2 2 0 100 4 2 2 0 000-4z"/></svg>
+            </button>
+            <div class="track-selector-menu" id="audio-track-menu">
+              <div class="track-menu-title">Audio Track</div>
+              <!-- populated by app.js -->
+            </div>
+          </div>
+
+          <!-- Subtitle track -->
+          <div class="track-selector" id="sub-track-selector">
+            <button class="ctrl-btn" id="sub-track-btn" title="Subtitles">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M0 4a2 2 0 012-2h12a2 2 0 012 2v8a2 2 0 01-2 2H2a2 2 0 01-2-2V4zm2-1a1 1 0 00-1 1v8a1 1 0 001 1h12a1 1 0 001-1V4a1 1 0 00-1-1H2zm3.5 6a.5.5 0 00-.5.5v1a.5.5 0 00.5.5h5a.5.5 0 00.5-.5v-1a.5.5 0 00-.5-.5h-5zm0-3a.5.5 0 00-.5.5v1a.5.5 0 00.5.5h9a.5.5 0 00.5-.5v-1a.5.5 0 00-.5-.5h-9z"/></svg>
+            </button>
+            <div class="track-selector-menu" id="sub-track-menu">
+              <div class="track-menu-title">Subtitles</div>
+              <!-- populated by app.js -->
+            </div>
+          </div>
+
+          <!-- Fullscreen -->
+          <button class="ctrl-btn" id="fullscreen-btn" title="Fullscreen (F)">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 1h4a.5.5 0 010 1H2v3.5a.5.5 0 01-1 0V1.5A.5.5 0 011.5 1zm10 0a.5.5 0 01.5.5V5a.5.5 0 01-1 0V2h-3.5a.5.5 0 010-1H11.5zM1 10.5a.5.5 0 011 0V14h3.5a.5.5 0 010 1H1.5a.5.5 0 01-.5-.5v-4zm14.5 4H11a.5.5 0 010-1h3.5v-3.5a.5.5 0 011 0v4a.5.5 0 01-.5.5z"/></svg>
+          </button>
+
+        </div><!-- /controls-right -->
+      </div><!-- /controls-row -->
+    </div><!-- /player-controls -->
+
+  </div><!-- /mpv-container -->
+</div><!-- /player-page -->
+
+<!-- ════════════════════════════════════════════════════════
+     DETAIL PANEL
+════════════════════════════════════════════════════════ -->
+<div class="detail-backdrop" id="detail-backdrop"></div>
+<aside id="detail-panel" aria-label="Content details">
+  <img class="detail-hero" id="detail-hero-img" alt="" style="display:none" />
+  <div class="detail-hero-placeholder" id="detail-hero-placeholder">
+    <svg width="40" height="40" viewBox="0 0 16 16" fill="rgba(255,255,255,0.1)"><path d="M6.002 5.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/><path d="M2.002 1a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V3a2 2 0 00-2-2h-12zm12 1a1 1 0 011 1v6.5l-3.777-1.947a.5.5 0 00-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 00-.63.062L1.002 12V3a1 1 0 011-1h12z"/></svg>
+  </div>
+
+  <div class="detail-body">
+    <div class="detail-title" id="detail-title"></div>
+    <div class="detail-meta" id="detail-meta"></div>
+    <div class="detail-desc" id="detail-desc"></div>
+    <button class="btn-ghost" id="detail-desc-toggle" style="font-size:12px;padding:0;margin-bottom:16px;display:none">Show more</button>
+
+    <div class="detail-actions" id="detail-actions">
+      <button class="btn btn-primary" id="detail-play-btn">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M10.804 8L5 4.633v6.734L10.804 8zm.792-.696a.802.802 0 010 1.392l-6.363 3.692C4.713 12.69 4 12.345 4 11.692V4.308c0-.653.713-.998 1.233-.696l6.363 3.692z"/></svg>
+        Play
+      </button>
+      <button class="resume-btn hidden" id="detail-resume-btn">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M10.804 8L5 4.633v6.734L10.804 8z"/></svg>
+        ↩ Resume
+      </button>
+      <button class="btn btn-secondary" id="detail-fav-btn">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.314C12.438-3.248 23.534 4.735 8 15-7.534 4.736 3.562-3.248 8 1.314z"/></svg>
+        Favorite
+      </button>
+      <button class="btn btn-ghost" id="detail-vlc-btn">VLC</button>
+      <button class="btn btn-ghost" id="detail-close-btn" style="margin-left:auto">✕</button>
+    </div>
+
+    <!-- Episode browser (series only) -->
+    <div id="episode-browser" style="display:none">
+      <div class="section-title" style="font-size:16px;margin-bottom:12px;">Episodes</div>
+      <div class="season-tabs" id="season-tabs"></div>
+      <div class="episode-list" id="episode-list"></div>
+    </div>
+  </div>
+</aside>
+
+<!-- ════════════════════════════════════════════════════════
+     MODALS
+════════════════════════════════════════════════════════ -->
+
+<!-- mpv not found -->
+<div id="mpv-missing-modal">
+  <div class="modal-box">
+    <div class="modal-icon">🎬</div>
+    <div class="modal-title">mpv not found</div>
+    <div class="modal-body">
+      Install mpv to enable the built-in player with GPU decoding and full codec support.
+      <div class="modal-code">winget install mpv.net</div>
+      or download from <strong>mpv.io</strong> and place mpv.exe next to this app.
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="modal-vlc-fallback-btn">Use VLC instead</button>
+      <button class="btn btn-secondary" id="modal-retry-mpv-btn">I installed it, retry</button>
+      <button class="btn btn-ghost" id="modal-dismiss-btn">Dismiss</button>
+    </div>
+  </div>
+</div>
+
+<!-- Keyboard shortcuts -->
+<div id="shortcuts-modal" role="dialog" aria-label="Keyboard shortcuts">
+  <div class="shortcuts-box">
+    <div class="shortcuts-title">Keyboard shortcuts</div>
+    <div class="shortcut-row"><span class="shortcut-action">Play / Pause</span><div class="shortcut-keys"><kbd class="kbd">Space</kbd></div></div>
+    <div class="shortcut-row"><span class="shortcut-action">Seek back 10s</span><div class="shortcut-keys"><kbd class="kbd">←</kbd></div></div>
+    <div class="shortcut-row"><span class="shortcut-action">Seek forward 10s</span><div class="shortcut-keys"><kbd class="kbd">→</kbd></div></div>
+    <div class="shortcut-row"><span class="shortcut-action">Volume up</span><div class="shortcut-keys"><kbd class="kbd">↑</kbd></div></div>
+    <div class="shortcut-row"><span class="shortcut-action">Volume down</span><div class="shortcut-keys"><kbd class="kbd">↓</kbd></div></div>
+    <div class="shortcut-row"><span class="shortcut-action">Mute</span><div class="shortcut-keys"><kbd class="kbd">M</kbd></div></div>
+    <div class="shortcut-row"><span class="shortcut-action">Fullscreen</span><div class="shortcut-keys"><kbd class="kbd">F</kbd></div></div>
+    <div class="shortcut-row"><span class="shortcut-action">Close player</span><div class="shortcut-keys"><kbd class="kbd">Esc</kbd></div></div>
+    <div class="shortcut-row"><span class="shortcut-action">Previous channel</span><div class="shortcut-keys"><kbd class="kbd">Page↑</kbd></div></div>
+    <div class="shortcut-row"><span class="shortcut-action">Next channel</span><div class="shortcut-keys"><kbd class="kbd">Page↓</kbd></div></div>
+    <div class="shortcut-row"><span class="shortcut-action">Stream info</span><div class="shortcut-keys"><kbd class="kbd">I</kbd></div></div>
+    <div class="shortcut-row"><span class="shortcut-action">Screenshot</span><div class="shortcut-keys"><kbd class="kbd">S</kbd></div></div>
+    <div class="shortcut-row"><span class="shortcut-action">Sleep timer</span><div class="shortcut-keys"><kbd class="kbd">player topbar</kbd></div></div>
+    <div class="shortcut-row"><span class="shortcut-action">Refresh content</span><div class="shortcut-keys"><kbd class="kbd">Ctrl</kbd><kbd class="kbd">R</kbd></div></div>
+    <div class="shortcut-row"><span class="shortcut-action">Shortcuts</span><div class="shortcut-keys"><kbd class="kbd">?</kbd></div></div>
+    <div style="margin-top:20px;text-align:right">
+      <button class="btn btn-secondary" id="shortcuts-close-btn">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Next episode prompt (appears after VOD ends) -->
+<div id="next-episode-prompt" style="
+  position:fixed;bottom:100px;right:24px;
+  background:rgba(20,20,20,0.95);border:1px solid var(--border-2);border-radius:var(--radius);
+  padding:16px 20px;display:none;gap:12px;align-items:center;z-index:250;
+  backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,0.5);
+  max-width:300px;animation:toast-in 0.3s var(--ease-spring) forwards;
+">
+  <div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:2px;">Finished!</div>
+    <div style="font-size:11px;color:var(--text-2);">Closing in <span id="next-ep-countdown">8</span>s</div>
+  </div>
+  <button id="next-ep-dismiss-btn" class="btn btn-secondary btn-sm">Dismiss</button>
+</div>
+<style>
+  #next-episode-prompt { display: none; }
+  #next-episode-prompt.visible { display: flex; }
+  .settings-select {
+    background: var(--bg-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xs);
+    padding: 6px 10px;
+    font-size: 13px;
+    color: var(--text);
+    width: 220px;
+  }
+</style>
+
+<!-- ════════════════════════════════════════════════════════
+     TOAST CONTAINER
+════════════════════════════════════════════════════════ -->
+<div id="toast-container" aria-live="polite"></div>
+
+<!-- ════════════════════════════════════════════════════════
+     SCRIPTS
+════════════════════════════════════════════════════════ -->
+<script src="db.js"></script>
+<script src="imageCache.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>

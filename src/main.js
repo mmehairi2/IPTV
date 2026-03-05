@@ -563,7 +563,7 @@ ipcMain.handle('open-external', (_, { url }) => {
 });
 
 // ─── VLC ──────────────────────────────────────────────────────
-let vlcProcess = null;  // track so we can kill it
+let vlcProcess = null;
 
 ipcMain.handle('vlc-check', async () => {
   const vlcPath = await findVLC();
@@ -655,8 +655,15 @@ ipcMain.handle('vlc-open', async (_, { url }) => {
       return { ok: false, error: 'VLC executable not found' };
     }
     
-    // Launch VLC as a normal standalone GUI app.
-    // detached + unref lets it live independently; user closes it with VLC's own X button.
+    // On macOS, spawning the .app binary directly doesn't show a window.
+    // Use the 'open' command which launches the .app properly.
+    if (IS_MAC) {
+      const proc = spawn('open', ['-a', 'VLC', url], { detached: true, stdio: 'ignore' });
+      proc.unref();
+      return { ok: true, path: executablePath };
+    }
+
+    // Windows/Linux: spawn VLC directly as a normal GUI app
     const proc = spawn(executablePath, [url], {
       detached: true,
       stdio: 'ignore',
@@ -674,17 +681,16 @@ ipcMain.handle('vlc-open', async (_, { url }) => {
 
 // Helper function to find VLC
 async function findVLC() {
-  // On macOS, VLC's binary ignores --version and opens a GUI window,
-  // so probe() always times out. Use fs.existsSync for macOS instead.
+  // On macOS, VLC binary ignores --version so probe() fails. Use existsSync instead.
   if (IS_MAC) {
     const macPaths = [
       '/Applications/VLC.app/Contents/MacOS/VLC',
-      path.join(os.homedir(), 'Applications/VLC.app/Contents/MacOS/VLC'),
+      require('path').join(require('os').homedir(), 'Applications/VLC.app/Contents/MacOS/VLC'),
       '/usr/local/bin/vlc',
       '/opt/homebrew/bin/vlc',
     ];
     for (const p of macPaths) {
-      if (fs.existsSync(p)) {
+      if (require('fs').existsSync(p)) {
         console.log('[VLC] Found on macOS at:', p);
         return p;
       }
@@ -712,6 +718,11 @@ async function findVLC() {
     // In app directory
     path.join(__dirname, 'vlc.exe'),
     path.join(process.cwd(), 'vlc.exe'),
+  ] : IS_MAC ? [
+    '/Applications/VLC.app/Contents/MacOS/VLC',
+    '/applications/VLC.app/Contents/MacOS/VLC',
+    '/usr/local/bin/vlc',
+    '/opt/homebrew/bin/vlc',
   ] : [
     'vlc',
     '/usr/bin/vlc',

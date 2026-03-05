@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DB_NAME = 'iptv_player_db';
-const DB_VER  = 3;  // v3: removed unused 'epg' object store (EPG lives in meta blob)
+const DB_VER  = 4;  // v4: added tmdb_cache object store
 
 let _db = null;
 let dbReady = null;
@@ -49,6 +49,10 @@ function openDB() {
       if (db.objectStoreNames.contains('epg')) {
         db.deleteObjectStore('epg');
       }
+
+      // v4: TMDB cache — keyed by 'type:cleanName'
+      if (!db.objectStoreNames.contains('tmdb_cache'))
+        db.createObjectStore('tmdb_cache', { keyPath: 'key' });
     };
 
     req.onsuccess = (e) => {
@@ -291,6 +295,31 @@ async function clearAll() {
   }
 }
 
+// ── TMDB Cache ────────────────────────────────────────────────────────────────
+const TMDB_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+async function getTMDB(key) {
+  try {
+    const store = await getStore('tmdb_cache');
+    const r = await p(store.get(key));
+    if (!r) return null;
+    if (Date.now() - r.cachedAt > TMDB_TTL) return null; // expired
+    return r;
+  } catch (e) {
+    console.error('getTMDB error:', e);
+    return null;
+  }
+}
+
+async function setTMDB(key, tmdbId, data) {
+  try {
+    const store = await getStore('tmdb_cache', 'readwrite');
+    await p(store.put({ key, tmdbId, data, cachedAt: Date.now() }));
+  } catch (e) {
+    console.error('setTMDB error:', e);
+  }
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 window.DB = {
   getMeta, setMeta, delMeta,
@@ -299,5 +328,6 @@ window.DB = {
   getHistory, saveHistoryItem, getHistoryItem, removeHistoryItem, clearHistory,
   getFavs, addFav, removeFav,
   getCacheAge, stampCache,
+  getTMDB, setTMDB,
   clearAll,
 };

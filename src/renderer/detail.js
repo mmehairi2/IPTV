@@ -124,6 +124,11 @@ function openDetail(item, type) {
 
   document.getElementById('detail-panel').classList.add('open');
   document.getElementById('detail-backdrop').classList.add('open');
+
+  // Async TMDB enrichment — runs in background, updates DOM when ready
+  if ((type === 'vod' || type === 'series') && S.settings.tmdbKey) {
+    _enrichDetailWithTMDB(item, type);
+  }
 }
 
 function closeDetail() {
@@ -200,4 +205,104 @@ async function loadSeriesEpisodes(item) {
   }
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// TMDB enrichment (async, background, non-blocking)
+// ═══════════════════════════════════════════════════════════════════════════
+async function _enrichDetailWithTMDB(item, type) {
+  if (!window.TMDB || !window.DB) return;
+
+  const cacheKey = `${type}:${TMDB.cleanName(item.name)}`;
+
+  // Check cache first
+  let cached = await DB.getTMDB(cacheKey);
+  let enriched = cached?.data || null;
+
+  // Cache miss — fetch from API
+  if (!enriched) {
+    enriched = await TMDB.enrichItem(item, type, S.settings.tmdbKey);
+    if (enriched) {
+      await DB.setTMDB(cacheKey, enriched.tmdbId, enriched);
+    }
+  }
+
+  if (!enriched) {
+    // Show a "Failed to load metadata" state in the detail panel
+    const panel = document.getElementById('detail-panel');
+    if (panel?.classList.contains('open')) {
+      const overviewEl = document.getElementById('detail-overview');
+      if (overviewEl && !overviewEl.textContent.trim()) {
+        overviewEl.innerHTML = `<span style="color:var(--text-3);font-style:italic;">No metadata available for this title.</span>`;
+      }
+    }
+    return;
+  }
+
+  // Guard: detail panel may have been closed while fetching
+  const panel = document.getElementById('detail-panel');
+  if (!panel?.classList.contains('open')) return;
+  if (!_detailItem || _detailItem.item.name !== item.name) return;
+
+  // Update hero/backdrop
+  if (enriched.backdrop) {
+    const heroImg = document.getElementById('detail-hero-img');
+    const heroPlh = document.getElementById('detail-hero-placeholder');
+    heroImg.src = enriched.backdrop;
+    heroImg.style.display = '';
+    heroPlh.style.display = 'none';
+    heroImg.onerror = () => { heroImg.style.display = 'none'; heroPlh.style.display = ''; };
+  }
+
+  // Update meta pills
+  const metaEl = document.getElementById('detail-meta');
+  const pills  = [];
+  const year   = enriched.year   || item.year;
+  const rating = enriched.rating || (item.rating ? parseFloat(item.rating).toFixed(1) : '');
+  if (year)    pills.push(`<span class="pill">${year}</span>`);
+  if (rating)  pills.push(`<span class="pill">⭐ ${rating}</span>`);
+  if (enriched.runtime) pills.push(`<span class="pill">${enriched.runtime}</span>`);
+  if (metaEl) metaEl.innerHTML = pills.join('');
+
+  // Genres
+  if (enriched.genres?.length) {
+    const existingGenres = document.getElementById('detail-genres');
+    if (!existingGenres) {
+      const genreEl = document.createElement('div');
+      genreEl.id = 'detail-genres';
+      genreEl.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;';
+      genreEl.innerHTML = enriched.genres.map(g =>
+        `<span style="background:var(--bg-4);border:1px solid var(--border);border-radius:999px;font-size:11px;padding:2px 10px;color:var(--text-2)">${esc(g)}</span>`
+      ).join('');
+      metaEl?.insertAdjacentElement('afterend', genreEl);
+    }
+  }
+
+  // Cast
+  const castEl = document.getElementById('detail-cast');
+  if (castEl && enriched.cast?.length) {
+    const dirLine = enriched.director ? `<strong>Director:</strong> ${esc(enriched.director)}<br>` : '';
+    const castNames = enriched.cast.map(c => esc(c.name)).join(', ');
+    castEl.innerHTML = `${dirLine}<strong>Cast:</strong> ${castNames}`;
+    castEl.style.display = '';
+  }
+
+  // Plot
+  if (enriched.plot) {
+    const desc = document.getElementById('detail-desc');
+    const descToggle = document.getElementById('detail-desc-toggle');
+    if (desc) {
+      desc.textContent = enriched.plot;
+      if (descToggle) descToggle.style.display = enriched.plot.length > 160 ? '' : 'none';
+    }
+  }
+
+  // Trailer button — enable with real YouTube key
+  if (enriched.trailerKey) {
+    const trailerBtn = document.getElementById('detail-trailer-btn');
+    if (trailerBtn) {
+      trailerBtn.onclick = () => {
+        const url = `https://www.youtube.com/watch?v=${enriched.trailerKey}`;
+        if (window.api?.openExternal) window.api.openExternal(url);
+      };
+    }
+  }
+}

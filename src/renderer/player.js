@@ -18,7 +18,7 @@ const S = {
   favs:       new Set(),
   watchlist:  new Set(),
   history:    [],
-  view:       { live: 'grid', movies: 'grid', series: 'grid' },
+  view:       { live: 'grid', movies: 'grid', series: 'grid', favorites: 'grid', watchlist: 'grid' },
   activeCat:  { live: 'all', movies: 'all', series: 'all' },
   search:     { live: '', movies: '', series: '' },
   page:       { live: 0, movies: 0, series: 0 },
@@ -108,9 +108,29 @@ const Player = (() => {
     const el = $('player-error');
     $('player-error-msg').textContent = msg || 'Unable to play this stream.';
     el.classList.add('visible');
+
+    // Show toast with retry button
+    toast(msg || 'Stream failed to load', 'error', 7000, {
+      retry: () => {
+        if (_retryUrl) { _clearError(); api.mpvLoadfile(_retryUrl, 'replace'); }
+      }
+    });
+
+    // Auto-retry once after 3s
+    clearTimeout(_autoRetryTimer);
+    _autoRetryTimer = setTimeout(() => {
+      if (el.classList.contains('visible') && _retryUrl) {
+        toast('Auto-retrying…', 'info', 2000);
+        _clearError();
+        api.mpvLoadfile(_retryUrl, 'replace');
+      }
+    }, 3000);
   }
 
+  let _autoRetryTimer = null;
+
   function _clearError() {
+    clearTimeout(_autoRetryTimer);
     $('player-error').classList.remove('visible');
   }
 
@@ -556,17 +576,19 @@ const Player = (() => {
     }));
 
     _unsubs.push(api.onMpvRestarting(({ attempt }) => {
-      _setLoading(true, 'Reconnecting…', `Attempt ${attempt}/3`);
+      _setLoading(true, 'Player crashed — restarting…', `Attempt ${attempt} of 3`);
+      toast(`mpv crashed, restarting (${attempt}/3)…`, 'warning', 3000);
     }));
 
     _unsubs.push(api.onMpvFallbackVlc(() => {
       _setLoading(false);
-      toast('mpv crashed — falling back to VLC', 'error');
+      toast('mpv failed 3 times — falling back to VLC', 'error', 6000);
       if (_retryUrl && S.current) {
         vlcDirect(_retryUrl, S.current.name);
       }
-      // Hide the player overlay — VLC plays in its own external window
-      Player.close();
+      // Show a proper error state instead of blank
+      _setError('mpv crashed repeatedly. Opened in VLC instead.');
+      // Don't call Player.close() so user can see the error panel
     }));
 
     _unsubs.push(api.onMpvExited(({ code }) => {
@@ -1005,6 +1027,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupSleepTimer();
   setupNextEpPrompt();
   setupEPGControls();     // Phase 3: EPG timeline
+  setupTitlebar();
+  setupNetworkDetection();
+  setupMediaKeys();
   Player.init();
   await bootApp();
   const t1 = performance.now();
@@ -1028,6 +1053,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       api.confirmFlush();
     }
   });
+
+  // Auto-update listeners
+  if (api.onUpdateAvailable) {
+    api.onUpdateAvailable(() => {
+      toast('Update available — downloading…', 'info', 5000);
+    });
+    api.onUpdateDownloaded(() => {
+      const banner = document.getElementById('update-banner');
+      if (banner) banner.style.display = 'flex';
+      const btn = document.getElementById('update-install-btn');
+      if (btn) btn.onclick = () => api.installUpdate?.();
+    });
+    api.onUpdateError(({ message }) => {
+      console.warn('[update]', message);
+    });
+  }
 });
 
 async function bootApp() {
@@ -1211,13 +1252,14 @@ async function manualRefresh() {
 
 function schedulePreload() {
   setTimeout(() => {
+    // Preload first 2 pages worth of images for each section
     const urls = [
-      ...S.channels.slice(0, PS).map(c => c.logo),
-      ...S.movies.slice(0, PS).map(m => m.logo),
-      ...S.series.slice(0, PS).map(s => s.logo),
+      ...S.channels.slice(0, PS * 2).map(c => c.logo),
+      ...S.movies.slice(0, PS * 2).map(m => m.logo),
+      ...S.series.slice(0, PS * 2).map(s => s.logo),
     ].filter(Boolean);
     ImageCache.preload(urls);
-  }, 1000);
+  }, 800);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1395,4 +1437,97 @@ function setupNextEpPrompt() {
     el.classList.remove('visible');
   });
 
+}
+// ═════════════════════════════════════════════════════════════════════════════
+// TITLEBAR (4-2)
+// ═════════════════════════════════════════════════════════════════════════════
+function setupTitlebar() {
+  const tbMin = document.getElementById('tb-minimize');
+  const tbMax = document.getElementById('tb-maximize');
+  const tbClose = document.getElementById('tb-close');
+
+  if (tbMin)   tbMin.addEventListener('click',   () => api.winMinimize?.());
+  if (tbMax)   tbMax.addEventListener('click',   () => api.winMaximize?.());
+  if (tbClose) tbClose.addEventListener('click', () => api.winClose?.());
+
+  // Update maximize icon on state change
+  function updateMaxIcon(isMax) {
+    const icon = document.getElementById('tb-max-icon');
+    if (!icon) return;
+    if (isMax) {
+      // Restore icon (two overlapping squares)
+      icon.innerHTML = `
+        <rect x="3" y="1" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <rect x="1" y="3" width="7" height="7" rx="1" fill="var(--bg)" stroke="currentColor" stroke-width="1.5"/>
+      `;
+    } else {
+      // Maximize icon (single square)
+      icon.innerHTML = `<rect x="1" y="1" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/>`;
+    }
+  }
+
+  if (api.winIsMaximized) {
+    api.winIsMaximized().then(updateMaxIcon);
+  }
+  if (api.onWinMaximizeChange) {
+    api.onWinMaximizeChange(({ maximized }) => updateMaxIcon(maximized));
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// NETWORK DETECTION (4-5)
+// ═════════════════════════════════════════════════════════════════════════════
+function setupNetworkDetection() {
+  const banner = document.getElementById('network-banner');
+  if (!banner) return;
+
+  function updateBanner() {
+    banner.classList.toggle('visible', !navigator.onLine);
+  }
+
+  window.addEventListener('online',  () => { updateBanner(); toast('Back online', 'success', 2500); });
+  window.addEventListener('offline', () => { updateBanner(); toast('No internet connection', 'warning', 5000); });
+  updateBanner();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// MEDIA KEYS (4-4)
+// ═════════════════════════════════════════════════════════════════════════════
+function setupMediaKeys() {
+  if (!api.onMediaKey) return;
+  api.onMediaKey(({ key }) => {
+    switch (key) {
+      case 'playpause': if (Player.isOpen) api.mpvTogglePause(); break;
+      case 'stop':      if (Player.isOpen) Player.close(); break;
+      case 'next':      navigateChannel(1);  break;
+      case 'prev':      navigateChannel(-1); break;
+      case 'volup': {
+        const newVol = Math.min(100, (S.settings.defaultVolume || 85) + 5);
+        S.settings.defaultVolume = newVol;
+        api.mpvSetVolume(newVol);
+        break;
+      }
+      case 'voldown': {
+        const newVol = Math.max(0, (S.settings.defaultVolume || 85) - 5);
+        S.settings.defaultVolume = newVol;
+        api.mpvSetVolume(newVol);
+        break;
+      }
+    }
+  });
+}
+
+// Navigate to next/prev channel when player is open
+function navigateChannel(dir) {
+  if (!S.current || !Player.isOpen) return;
+  const list = S.current.type === 'live' ? S.channels
+             : S.current.type === 'movie' ? S.movies
+             : S.series;
+  const idx = list.findIndex(c => c.name === S.current.name);
+  if (idx < 0) return;
+  const next = list[idx + dir];
+  if (next) {
+    // Use the existing card click pathway
+    Player.open(next.url || next.stream_url, next.name, next.category_name, S.current.type, next.poster || next.cover);
+  }
 }

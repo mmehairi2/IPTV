@@ -30,6 +30,7 @@
   --accent:      #e8f0fe;
   --blue:        #3a7aff;
   --blue-glow:   rgba(58, 122, 255, 0.35);
+  --card-min-width: 180px;
   --red:         #ff453a;
   --green:       #30d158;
   --yellow:      #ffd60a;
@@ -50,7 +51,91 @@
 
   --player-controls-h: 88px;
   --topbar-h: 52px;
+  --titlebar-h: 36px;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   CUSTOM FRAMELESS TITLEBAR
+═══════════════════════════════════════════════════════════ */
+#titlebar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--titlebar-h);
+  background: rgba(5,10,24,0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  z-index: 1000;
+  -webkit-app-region: drag;
+  user-select: none;
+  flex-shrink: 0;
+}
+#titlebar-title {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+#titlebar-left {
+  width: 120px;
+  display: flex;
+  align-items: center;
+  padding-left: 14px;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+}
+#titlebar-right {
+  width: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+.tb-btn {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-2);
+  transition: background 0.15s, color 0.15s;
+  cursor: default;
+  -webkit-app-region: no-drag;
+}
+.tb-btn:hover { background: var(--surface-2); color: var(--text); }
+.tb-btn.close:hover { background: rgba(255,69,58,0.8); color: #fff; }
+.tb-btn svg { pointer-events: none; }
+
+/* Push app content below titlebar */
+#app {
+  padding-top: var(--titlebar-h);
+}
+
+/* ─── Network / Update Banners ─────────────────────────────── */
+#network-banner, #update-banner {
+  position: fixed;
+  top: var(--titlebar-h);
+  left: 0; right: 0;
+  z-index: 500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: transform 0.3s var(--ease-out);
+}
+#network-banner { background: rgba(255,69,58,0.18); border-bottom: 1px solid rgba(255,69,58,0.3); color: #ff8a80; }
+#update-banner  { background: rgba(58,122,255,0.18); border-bottom: 1px solid rgba(58,122,255,0.3); color: #90b8ff; }
+#network-banner.visible, #update-banner.visible { display: flex; }
+#update-install-btn { padding: 3px 10px; font-size: 12px; border-radius: 4px; background: rgba(58,122,255,0.4); color: #fff; border: 1px solid rgba(58,122,255,0.6); cursor: pointer; }
+#update-install-btn:hover { background: rgba(58,122,255,0.6); }
 
 /* ═══════════════════════════════════════════════════════════
    RESET
@@ -345,12 +430,12 @@ svg    { display: block; flex-shrink: 0; }
 /* ─── Content Grid ─────────────────────────────────────────── */
 .content-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-min-width, 140px), 1fr));
   gap: 12px;
   margin-bottom: 32px;
 }
 .content-grid.large {
-  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-min-width, 175px), 1fr));
   gap: 14px;
 }
 
@@ -1468,6 +1553,43 @@ svg    { display: block; flex-shrink: 0; }
 .settings-section-icon { font-size: 14px; opacity: 0.9; }
 .settings-section-desc { font-size: 12px; color: var(--text-3); margin-top: -4px; margin-bottom: 12px; }
 
+/* ── Appearance controls ── */
+.color-swatch {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 2px solid transparent; cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+.color-swatch:hover { transform: scale(1.15); }
+.color-swatch.active { border-color: #fff; box-shadow: 0 0 0 2px var(--blue); }
+
+.theme-swatch {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  background: none; border: 2px solid var(--border); border-radius: 8px;
+  padding: 6px 8px; cursor: pointer; transition: border-color 0.15s;
+  min-width: 72px;
+}
+.theme-swatch:hover { border-color: var(--text-3); }
+.theme-swatch.active { border-color: var(--blue); }
+.theme-preview { display: block; width: 56px; height: 32px; border-radius: 4px; }
+.theme-label { font-size: 11px; color: var(--text-2); white-space: nowrap; }
+.appear-toggle.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+/* ── Icon-only sidebar ── */
+.sidebar.icon-only { width: 52px !important; }
+.sidebar.icon-only .nav-label { display: none; }
+.sidebar.icon-only .nav-item { justify-content: center; padding: 10px 0; position: relative; }
+.sidebar.icon-only .nav-item[title]:hover::after {
+  content: attr(title);
+  position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+  background: var(--bg-4); color: var(--text); font-size: 12px; padding: 4px 10px;
+  border-radius: 6px; white-space: nowrap; z-index: 999;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  pointer-events: none;
+}
+.sidebar.icon-only .nav-badge { position: absolute; top: 6px; right: 6px; }
+.sidebar.icon-only #src-indicator { display: none; }
+
 /* Onboarding overlay (first-time, no source) */
 .onboarding-overlay {
   position: absolute;
@@ -1487,13 +1609,35 @@ svg    { display: block; flex-shrink: 0; }
   border: 1px solid var(--border-2);
   border-radius: var(--radius);
   padding: 28px 32px;
-  max-width: 380px;
+  max-width: 420px;
+  width: 100%;
   text-align: center;
   box-shadow: 0 24px 48px rgba(0,0,0,0.4);
 }
 .onboarding-icon { font-size: 48px; margin-bottom: 16px; }
 .onboarding-title { font-family: var(--font-display); font-size: 18px; font-weight: 700; margin-bottom: 10px; }
 .onboarding-text { font-size: 13px; color: var(--text-2); line-height: 1.6; margin-bottom: 20px; }
+/* Progress dots */
+.onboarding-dots { display: flex; justify-content: center; gap: 7px; margin-bottom: 22px; }
+.onboarding-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--border-2); transition: background 0.2s, transform 0.2s;
+}
+.onboarding-dot.active { background: var(--blue); transform: scale(1.3); }
+.onboarding-dot.done   { background: var(--green); }
+/* Step actions row */
+.onboarding-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+/* Step content area */
+.onboarding-step { display: none; }
+.onboarding-step.active { display: block; }
+/* Input inside onboarding */
+.ob-input {
+  width: 100%; background: var(--bg-3); border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm); padding: 9px 12px; font-size: 13px;
+  color: var(--text); margin-bottom: 8px;
+}
+.ob-input:focus { border-color: var(--blue); outline: none; }
+.ob-label { text-align: left; font-size: 12px; color: var(--text-2); margin-bottom: 4px; }
 
 .settings-row {
   display: flex;
@@ -1587,6 +1731,7 @@ svg    { display: block; flex-shrink: 0; }
   gap: 8px;
   align-items: center;
   pointer-events: none;
+  width: 400px;
 }
 .toast {
   display: flex;
@@ -1601,13 +1746,25 @@ svg    { display: block; flex-shrink: 0; }
   font-weight: 500;
   box-shadow: 0 4px 24px rgba(0,0,0,0.4);
   animation: toast-in 0.3s var(--ease-spring) forwards;
-  max-width: 360px;
+  max-width: 380px;
   pointer-events: all;
+  width: max-content;
 }
 .toast.out { animation: toast-out 0.25s ease forwards; }
 .toast-icon { font-size: 15px; flex-shrink: 0; }
-.toast.success .toast-icon { filter: none; }
-.toast.error { border-color: rgba(255,69,58,0.35); }
+.toast.success { border-color: rgba(48,209,88,0.35); }
+.toast.success .toast-icon { color: var(--green); }
+.toast.error   { border-color: rgba(255,69,58,0.35); }
+.toast.error   .toast-icon { color: var(--red); }
+.toast.warning { border-color: rgba(255,214,10,0.35); }
+.toast.warning .toast-icon { color: var(--yellow); }
+.toast.info .toast-icon { color: var(--blue); }
+.toast-retry-btn {
+  margin-left: auto; padding: 3px 8px; font-size: 11px;
+  border-radius: 4px; background: var(--surface-2); border: 1px solid var(--border-2);
+  color: var(--text); cursor: pointer; flex-shrink: 0;
+}
+.toast-retry-btn:hover { background: var(--surface-3); }
 @keyframes toast-in  { from { opacity: 0; transform: translateY(12px) scale(0.95); } to { opacity: 1; transform: none; } }
 @keyframes toast-out { to   { opacity: 0; transform: translateY(8px) scale(0.95); } }
 
@@ -1684,6 +1841,40 @@ svg    { display: block; flex-shrink: 0; }
 <body>
 
 <!-- ════════════════════════════════════════════════════════
+     CUSTOM FRAMELESS TITLEBAR
+════════════════════════════════════════════════════════ -->
+<div id="titlebar">
+  <div id="titlebar-left">
+    <!-- macOS traffic lights area (empty on Windows) -->
+  </div>
+  <span id="titlebar-title">Stream</span>
+  <div id="titlebar-right">
+    <button class="tb-btn" id="tb-minimize" title="Minimize" aria-label="Minimize">
+      <svg width="11" height="2" viewBox="0 0 11 2"><rect width="11" height="2" rx="1" fill="currentColor"/></svg>
+    </button>
+    <button class="tb-btn" id="tb-maximize" title="Maximize" aria-label="Maximize / Restore">
+      <svg width="10" height="10" viewBox="0 0 10 10" id="tb-max-icon"><rect x="1" y="1" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+    </button>
+    <button class="tb-btn close" id="tb-close" title="Close" aria-label="Close">
+      <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- Network offline banner -->
+<div id="network-banner" role="alert">
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 15A7 7 0 118 1a7 7 0 010 14zm0 1A8 8 0 108 0a8 8 0 000 16z"/><path d="M7.002 11a1 1 0 112 0 1 1 0 01-2 0zM7.1 4.995a.905.905 0 111.8 0l-.35 3.507a.552.552 0 01-1.1 0L7.1 4.995z"/></svg>
+  No internet connection — streams may not load
+</div>
+
+<!-- Auto-update banner -->
+<div id="update-banner" role="status" style="display:none">
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 16A8 8 0 108 0a8 8 0 000 16zm.93-9.412l-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM8 5.5a1 1 0 100-2 1 1 0 000 2z"/></svg>
+  Update available — ready to install
+  <button id="update-install-btn">Restart &amp; Install</button>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
      APP SHELL
 ════════════════════════════════════════════════════════ -->
 <div id="app">
@@ -1702,42 +1893,47 @@ svg    { display: block; flex-shrink: 0; }
 
     <div class="sidebar-section">
       <div class="sidebar-section-label">Browse</div>
-      <div class="nav-item active" data-page="home">
+      <div class="nav-item active" data-page="home" title="Home">
         <!-- Home -->
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8.707 1.5a1 1 0 00-1.414 0L1.5 7.293A1 1 0 002.207 9H3v5a1 1 0 001 1h2.5a.5.5 0 00.5-.5V11h2v3.5a.5.5 0 00.5.5H12a1 1 0 001-1V9h.793a1 1 0 00.707-1.707L8.707 1.5z"/></svg>
         <span class="nav-label">Home</span>
       </div>
-      <div class="nav-item" data-page="live">
+      <div class="nav-item" data-page="live" title="Live TV">
         <!-- TV -->
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 2A1.5 1.5 0 001 3.5v7A1.5 1.5 0 002.5 12H6l-.5 2H4a.5.5 0 000 1h8a.5.5 0 000-1h-1.5L10 12h3.5A1.5 1.5 0 0015 10.5v-7A1.5 1.5 0 0013.5 2h-11z"/></svg>
         <span class="nav-label">Live TV</span>
         <span class="nav-badge" id="live-count-badge" style="display:none">0</span>
       </div>
-      <div class="nav-item" data-page="movies">
+      <div class="nav-item" data-page="movies" title="Movies">
         <!-- Film -->
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M0 1a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H1a1 1 0 01-1-1V1zm4 0v6h8V1H4zm8 8H4v6h8V9zM1 1v2h2V1H1zm2 3H1v2h2V4zM1 7v2h2V7H1zm2 3H1v2h2v-2zm-2 3v2h2v-2H1zM15 1h-2v2h2V1zm-2 3v2h2V4h-2zm2 3h-2v2h2V7zm-2 3v2h2v-2h-2zm2 3h-2v2h2v-2z"/></svg>
         <span class="nav-label">Movies</span>
       </div>
-      <div class="nav-item" data-page="series">
+      <div class="nav-item" data-page="series" title="Series">
         <!-- Layers -->
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8.235 1.559a.5.5 0 00-.47 0l-7.5 4a.5.5 0 000 .882L3.188 8 .264 9.559a.5.5 0 000 .882l7.5 4a.5.5 0 00.47 0l7.5-4a.5.5 0 000-.882L12.813 8l2.922-1.559a.5.5 0 000-.882l-7.5-4z"/></svg>
         <span class="nav-label">Series</span>
       </div>
-      <div class="nav-item" data-page="favorites">
+      <div class="nav-item" data-page="favorites" title="Favorites">
         <!-- Heart -->
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.314C12.438-3.248 23.534 4.735 8 15-7.534 4.736 3.562-3.248 8 1.314z"/></svg>
         <span class="nav-label">Favorites</span>
       </div>
-      <div class="nav-item" data-page="watchlist">
+      <div class="nav-item" data-page="watchlist" title="Watchlist">
         <!-- Bookmark / list -->
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2a2 2 0 012-2h8a2 2 0 012 2v13.5a.5.5 0 01-.777.433L8 13.101l-5.223 2.83A.5.5 0 012 15.5V2zm2-1a1 1 0 00-1 1v12.566l4.723-2.482a.5.5 0 01.554 0L13 14.566V2a1 1 0 00-1-1H4z"/></svg>
         <span class="nav-label">Watchlist</span>
+      </div>
+      <div class="nav-item" data-page="downloads" title="Downloads">
+        <!-- Download icon -->
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M.5 9.9a.5.5 0 01.5.5v2.5a1 1 0 001 1h12a1 1 0 001-1v-2.5a.5.5 0 011 0v2.5a2 2 0 01-2 2H2a2 2 0 01-2-2v-2.5a.5.5 0 01.5-.5z"/><path d="M7.646 11.854a.5.5 0 00.708 0l3-3a.5.5 0 00-.708-.708L8.5 10.293V1.5a.5.5 0 00-1 0v8.793L5.354 8.146a.5.5 0 10-.708.708l3 3z"/></svg>
+        <span class="nav-label">Downloads</span>
       </div>
     </div>
 
     <div class="sidebar-section">
       <div class="sidebar-section-label">Guide</div>
-      <div class="nav-item" data-page="epg">
+      <div class="nav-item" data-page="epg" title="TV Guide">
         <!-- Calendar -->
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 0a.5.5 0 01.5.5V1h8V.5a.5.5 0 011 0V1h1a2 2 0 012 2v11a2 2 0 01-2 2H2a2 2 0 01-2-2V3a2 2 0 012-2h1V.5a.5.5 0 01.5-.5zM1 4v10a1 1 0 001 1h12a1 1 0 001-1V4H1z"/></svg>
         <span class="nav-label">TV Guide</span>
@@ -1745,7 +1941,7 @@ svg    { display: block; flex-shrink: 0; }
     </div>
 
     <div class="sidebar-bottom">
-      <div class="nav-item" data-page="settings">
+      <div class="nav-item" data-page="settings" title="Settings">
         <!-- Gear -->
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 4.754a3.246 3.246 0 100 6.492 3.246 3.246 0 000-6.492zM5.754 8a2.246 2.246 0 114.492 0 2.246 2.246 0 01-4.492 0z"/><path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 01-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 01-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 01.52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 011.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 011.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 01.52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 01-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 01-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 002.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 001.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 00-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 00-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 00-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 003.06 9.377l-.318-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 004.175 4.82l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 002.692-1.115l.094-.319z"/></svg>
         <span class="nav-label">Settings</span>
@@ -1793,10 +1989,45 @@ svg    { display: block; flex-shrink: 0; }
       <section class="page active" id="page-home" data-title="Home">
         <div id="onboarding-overlay" class="onboarding-overlay" style="display:none;" aria-label="First-time setup">
           <div class="onboarding-card">
-            <div class="onboarding-icon">📺</div>
-            <div class="onboarding-title">Welcome to Stream</div>
-            <div class="onboarding-text">Connect your IPTV source to get started. Go to <strong>Settings</strong> → <strong>Source</strong> and enter your Xtream Codes server details.</div>
-            <button type="button" class="btn btn-primary" id="onboarding-got-it">Got it</button>
+            <div class="onboarding-icon" id="ob-icon">📺</div>
+            <div class="onboarding-title" id="ob-title">Welcome to Stream</div>
+
+            <!-- Progress dots -->
+            <div class="onboarding-dots">
+              <div class="onboarding-dot active" id="ob-dot-0"></div>
+              <div class="onboarding-dot" id="ob-dot-1"></div>
+              <div class="onboarding-dot" id="ob-dot-2"></div>
+            </div>
+
+            <!-- Step 0: Connect source -->
+            <div class="onboarding-step active" id="ob-step-0">
+              <div class="onboarding-text">Connect your IPTV source to get started. Enter your Xtream Codes credentials below, or set them later in <strong>Settings → Source</strong>.</div>
+              <div class="ob-label">Server URL</div>
+              <input class="ob-input" id="ob-server" type="text" placeholder="http://your-server.com:8080" autocomplete="off" spellcheck="false"/>
+              <div class="ob-label">Username</div>
+              <input class="ob-input" id="ob-user" type="text" placeholder="username" autocomplete="off" spellcheck="false"/>
+              <div class="ob-label">Password</div>
+              <input class="ob-input" id="ob-pass" type="password" placeholder="password" autocomplete="off"/>
+            </div>
+
+            <!-- Step 1: mpv setup -->
+            <div class="onboarding-step" id="ob-step-1">
+              <div class="onboarding-text">Stream uses <strong>mpv</strong> for hardware-accelerated playback. mpv should be installed and placed in your PATH or next to this app.</div>
+              <div id="ob-mpv-status" style="margin-bottom:12px;font-size:13px;color:var(--text-2);">Checking for mpv…</div>
+            </div>
+
+            <!-- Step 2: TMDB key (optional) -->
+            <div class="onboarding-step" id="ob-step-2">
+              <div class="onboarding-text">Optionally add a <strong>TMDB API key</strong> to enable movie/series artwork and metadata. You can always add this later in Settings.</div>
+              <div class="ob-label">TMDB API Key (optional)</div>
+              <input class="ob-input" id="ob-tmdb" type="text" placeholder="Paste your TMDB v3 API key here" autocomplete="off" spellcheck="false"/>
+            </div>
+
+            <!-- Actions -->
+            <div class="onboarding-actions">
+              <button type="button" class="btn btn-ghost btn-sm" id="ob-skip">Skip</button>
+              <button type="button" class="btn btn-primary" id="ob-next">Next</button>
+            </div>
           </div>
         </div>
         <div id="continue-watching-section">
@@ -1880,6 +2111,10 @@ svg    { display: block; flex-shrink: 0; }
       </section>
 
       <!-- TV GUIDE / EPG -->
+      <section class="page" id="page-downloads" data-title="Downloads">
+        <div id="downloads-content"></div>
+      </section>
+
       <section class="page" id="page-epg" data-title="TV Guide">
         <div id="epg-controls" style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
           <div style="display:flex;gap:4px;">
@@ -1991,7 +2226,97 @@ svg    { display: block; flex-shrink: 0; }
 
         <div class="settings-section">
           <div class="settings-section-title"><span class="settings-section-icon" aria-hidden="true">🎨</span> Appearance</div>
-          <p class="settings-section-desc">Theme and display options (coming soon).</p>
+
+          <!-- Accent Color -->
+          <div class="settings-row" style="align-items:flex-start;flex-direction:column;gap:10px;">
+            <div class="settings-label">Accent Color</div>
+            <div id="accent-swatches" style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="color-swatch" data-accent="#3a7aff" style="background:#3a7aff" title="Blue"></button>
+              <button class="color-swatch" data-accent="#9b59ff" style="background:#9b59ff" title="Purple"></button>
+              <button class="color-swatch" data-accent="#22c55e" style="background:#22c55e" title="Green"></button>
+              <button class="color-swatch" data-accent="#f97316" style="background:#f97316" title="Orange"></button>
+              <button class="color-swatch" data-accent="#ef4444" style="background:#ef4444" title="Red"></button>
+              <button class="color-swatch" data-accent="#ec4899" style="background:#ec4899" title="Pink"></button>
+            </div>
+          </div>
+
+          <!-- Background Theme -->
+          <div class="settings-row" style="align-items:flex-start;flex-direction:column;gap:10px;margin-top:4px;">
+            <div class="settings-label">Background Theme</div>
+            <div id="theme-swatches" style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="theme-swatch" data-theme="dark-blue" title="Dark Blue">
+                <span class="theme-preview" style="background:linear-gradient(135deg,#050a18 40%,#10172b 100%)"></span>
+                <span class="theme-label">Dark Blue</span>
+              </button>
+              <button class="theme-swatch" data-theme="pure-black" title="Pure Black">
+                <span class="theme-preview" style="background:linear-gradient(135deg,#000 40%,#111 100%)"></span>
+                <span class="theme-label">Pure Black</span>
+              </button>
+              <button class="theme-swatch" data-theme="dark-grey" title="Dark Grey">
+                <span class="theme-preview" style="background:linear-gradient(135deg,#0f0f0f 40%,#242424 100%)"></span>
+                <span class="theme-label">Dark Grey</span>
+              </button>
+              <button class="theme-swatch" data-theme="midnight" title="Midnight">
+                <span class="theme-preview" style="background:linear-gradient(135deg,#0d0d1a 40%,#1a1a3a 100%)"></span>
+                <span class="theme-label">Midnight</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Card Size -->
+          <div class="settings-row" style="margin-top:4px;">
+            <div>
+              <div class="settings-label">Card Size</div>
+              <div class="settings-sublabel">Width of content cards in grid view</div>
+            </div>
+            <div id="card-size-btns" style="display:flex;gap:6px;">
+              <button class="btn btn-secondary btn-sm appear-toggle" data-group="cardSize" data-val="small">Small</button>
+              <button class="btn btn-secondary btn-sm appear-toggle" data-group="cardSize" data-val="medium">Medium</button>
+              <button class="btn btn-secondary btn-sm appear-toggle" data-group="cardSize" data-val="large">Large</button>
+            </div>
+          </div>
+
+          <!-- Font Size -->
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Font Size</div>
+            </div>
+            <div id="font-size-btns" style="display:flex;gap:6px;">
+              <button class="btn btn-secondary btn-sm appear-toggle" data-group="fontSize" data-val="small">Small</button>
+              <button class="btn btn-secondary btn-sm appear-toggle" data-group="fontSize" data-val="normal">Normal</button>
+              <button class="btn btn-secondary btn-sm appear-toggle" data-group="fontSize" data-val="large">Large</button>
+            </div>
+          </div>
+
+          <!-- Sidebar Mode -->
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Sidebar</div>
+              <div class="settings-sublabel">Full sidebar or icon-only compact mode</div>
+            </div>
+            <div id="sidebar-btns" style="display:flex;gap:6px;">
+              <button class="btn btn-secondary btn-sm appear-toggle" data-group="sidebarMode" data-val="full">Full</button>
+              <button class="btn btn-secondary btn-sm appear-toggle" data-group="sidebarMode" data-val="icons">Icons only</button>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title"><span class="settings-section-icon" aria-hidden="true">🔗</span> Integrations</div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">TMDB API Key</div>
+              <div class="settings-sublabel">Enriches movie/series info with posters, ratings, trailers.
+                <a href="#" onclick="event.preventDefault();window.api&&window.api.openExternal('https://www.themoviedb.org/settings/api')" style="color:var(--blue);text-decoration:none">Get a free key ↗</a>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+              <input class="settings-input" id="cfg-tmdb-key" type="password" placeholder="Paste your API key" style="width:220px;" autocomplete="off" />
+              <button class="btn btn-secondary btn-sm" id="tmdb-test-btn">Test</button>
+            </div>
+          </div>
+          <div id="tmdb-status" style="font-size:12px;color:var(--text-3);margin-top:-4px;margin-bottom:4px;"></div>
         </div>
 
         <div class="settings-section">
@@ -2231,6 +2556,10 @@ svg    { display: block; flex-shrink: 0; }
       </button>
       <button class="btn btn-secondary" id="detail-watchlist-btn">+ Watchlist</button>
       <button class="btn btn-ghost" id="detail-vlc-btn">VLC</button>
+      <button class="btn btn-ghost" id="detail-download-btn" disabled title="Coming soon" style="opacity:0.45;cursor:default;">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M.5 9.9a.5.5 0 01.5.5v2.5a1 1 0 001 1h12a1 1 0 001-1v-2.5a.5.5 0 011 0v2.5a2 2 0 01-2 2H2a2 2 0 01-2-2v-2.5a.5.5 0 01.5-.5z"/><path d="M7.646 11.854a.5.5 0 00.708 0l3-3a.5.5 0 00-.708-.708L8.5 10.293V1.5a.5.5 0 00-1 0v8.793L5.354 8.146a.5.5 0 10-.708.708l3 3z"/></svg>
+        Download
+      </button>
       <button class="btn btn-secondary" id="detail-trailer-btn">
         <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8.051 1.999h.089c.822.003 4.987.033 6.11.335a.538.538 0 01.254.059c.3.128.477.36.477.592 0 .196-.127.393-.253.523a.956.956 0 01-.244.22 4.49 4.49 0 00-1.254.798c-.82.82-1.319 1.58-1.447 1.653a.545.545 0 01-.437.163c-.469-.034-.946-.006-1.374-.006-.318 0-.625.004-.818.007-.393.007-.353.006-.714-.047-.254-.051-.352-.068-.45-.068-.194 0-.352.151-.398.35-.101.402-.238 1.005-.488 1.65l-.01.028c-.114.308-.239.794-.508 1.717a.545.545 0 01-.544.387c-.28 0-.605-.123-.732-.38-.127-.257-.127-.578-.127-.964V7.075c0-.386.006-.707.127-.964.127-.257.452-.38.732-.38.28 0 .43.079.544.387.27.923.394 1.41.508 1.717l.01.028c.25.645.387 1.248.488 1.65.046.199.204.35.398.35.098 0 .196.017.45.068.361.053.321.054.714.047.193-.003.5-.007.818-.007.428 0 .905-.028 1.374.006.178.013.354.054.437.163.128.073.627.833 1.447 1.653a4.49 4.49 0 001.254.798.956.956 0 01.244-.22c.126-.13.253-.327.253-.523 0-.232-.177-.464-.477-.592a.538.538 0 00-.254-.059c-1.123-.302-5.288-.332-6.11-.335zM4.5 6.5a.5.5 0 00-1 0v3a.5.5 0 001 0v-3z"/></svg>
         Trailer
@@ -2342,8 +2671,10 @@ svg    { display: block; flex-shrink: 0; }
 <script src="util.js"></script>
 <script src="xtream.js"></script>
 <script src="epg.js"></script>
+<script src="tmdb.js"></script>
 <script src="detail.js"></script>
 <script src="settings.js"></script>
+<script src="download.js"></script>
 <script src="lists.js"></script>
 <script src="player.js"></script>
 

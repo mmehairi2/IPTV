@@ -32,9 +32,28 @@ contextBridge.exposeInMainWorld('api', {
   fetchM3u:    (url)     => invoke('fetch-m3u',    { url }),
   fetchXtream: (url)     => invoke('fetch-xtream', { url }),
   fetchEpg:    (url)     => invoke('fetch-epg',    { url }),
+  fetchImage:  (url)     => invoke('fetch-image',  { url }),
 
   /** Open URL in the default system browser */
   openExternal: (url) => invoke('open-external', { url }),
+
+  // ── Window Controls (Frameless Titlebar) ───────────────────
+  winMinimize:   () => ipcRenderer.send('win-minimize'),
+  winMaximize:   () => ipcRenderer.send('win-maximize'),
+  winClose:      () => ipcRenderer.send('win-close'),
+  winIsMaximized: () => invoke('win-is-maximized'),
+
+  /** Fired when window maximize state changes { maximized } */
+  onWinMaximizeChange: (cb) => on('win-maximize-change', cb),
+
+  /** Media key pressed from OS { key: 'playpause'|'stop'|'next'|'prev'|'volup'|'voldown' } */
+  onMediaKey: (cb) => on('media-key', cb),
+
+  // ── Auto-Update ─────────────────────────────────────────────
+  onUpdateAvailable:   (cb) => on('update-available',   cb),
+  onUpdateDownloaded:  (cb) => on('update-downloaded',  cb),
+  onUpdateError:       (cb) => on('update-error',       cb),
+  installUpdate: () => ipcRenderer.send('install-update'),
 
   // ── mpv Lifecycle ───────────────────────────────────────────
 

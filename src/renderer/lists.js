@@ -30,6 +30,7 @@ function navigateTo(page) {
   if (page === 'favorites') renderFavorites();
   if (page === 'settings')  renderSettings();
   if (page === 'epg')       renderEPGGrid();
+  if (page === 'downloads') renderDownloads();
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -68,17 +69,17 @@ function setGlobalView(view) {
   const activePage = document.querySelector('.page.active')?.id?.replace('page-', '');
   if (activePage && S.view[activePage] !== undefined) {
     S.view[activePage] = view;
-    if (activePage === 'live')   renderLive();
-    if (activePage === 'movies') renderMovies();
-    if (activePage === 'series') renderSeries();
+    if (activePage === 'live')      renderLive();
+    if (activePage === 'movies')    renderMovies();
+    if (activePage === 'series')    renderSeries();
+    if (activePage === 'favorites') renderFavorites();
+    if (activePage === 'watchlist') renderWatchlist();
   }
   if (activePage === 'home') {
     S.view.live = view;
     renderHome();
   }
-  if (activePage === 'watchlist') renderWatchlist();
-  if (activePage === 'favorites') renderFavorites();
-  }
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
 // PLAY ITEM — central entry point
@@ -171,13 +172,90 @@ async function showOnboardingIfNeeded() {
 }
 
 function setupOnboarding() {
-  const btn = document.getElementById('onboarding-got-it');
   const overlay = document.getElementById('onboarding-overlay');
-  if (!btn || !overlay) return;
-  btn.addEventListener('click', async () => {
+  const nextBtn = document.getElementById('ob-next');
+  const skipBtn = document.getElementById('ob-skip');
+  if (!overlay || !nextBtn) return;
+
+  const steps = ['ob-step-0', 'ob-step-1', 'ob-step-2'];
+  const icons  = ['📺', '🎬', '🎭'];
+  const titles = ['Welcome to Stream', 'Set up mpv Player', 'TMDB Metadata (Optional)'];
+  const dots   = [0,1,2].map(i => document.getElementById(`ob-dot-${i}`));
+  let cur = 0;
+
+  function gotoStep(i) {
+    steps.forEach((id, j) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('active', j === i);
+    });
+    dots.forEach((d, j) => {
+      if (!d) return;
+      d.classList.toggle('active', j === i);
+      d.classList.toggle('done', j < i);
+    });
+    document.getElementById('ob-icon').textContent  = icons[i];
+    document.getElementById('ob-title').textContent = titles[i];
+    nextBtn.textContent = i < 2 ? 'Next →' : 'Get Started';
+    cur = i;
+
+    // Step 1: check mpv
+    if (i === 1) {
+      const statusEl = document.getElementById('ob-mpv-status');
+      api.mpvDetect().then(p => {
+        if (statusEl) statusEl.innerHTML = p
+          ? `<span style="color:var(--green)">✓ mpv found: ${esc(p)}</span>`
+          : `<span style="color:var(--red)">✕ mpv not found.</span> <a href="#" style="color:var(--blue)" onclick="api.openExternal('https://mpv.io');return false">Download mpv</a>`;
+      });
+    }
+  }
+
+  nextBtn.addEventListener('click', async () => {
+    if (cur === 0) {
+      // Save source if filled
+      const server = document.getElementById('ob-server')?.value.trim();
+      const user   = document.getElementById('ob-user')?.value.trim();
+      const pass   = document.getElementById('ob-pass')?.value.trim();
+      if (server && user) {
+        // Pre-fill settings fields and attempt connect
+        const sEl = document.getElementById('cfg-server');
+        const uEl = document.getElementById('cfg-user');
+        const pEl = document.getElementById('cfg-pass');
+        if (sEl) sEl.value = server;
+        if (uEl) uEl.value = user;
+        if (pEl) pEl.value = pass;
+      }
+      gotoStep(1);
+    } else if (cur === 1) {
+      gotoStep(2);
+    } else {
+      // Step 2: save TMDB key if provided
+      const key = document.getElementById('ob-tmdb')?.value.trim();
+      if (key) {
+        await DB.setMeta('settings', { ...S.settings, tmdbKey: key });
+        S.settings.tmdbKey = key;
+      }
+      await finish();
+    }
+  });
+
+  skipBtn.addEventListener('click', async () => {
+    if (cur < 2) { gotoStep(cur + 1); }
+    else { await finish(); }
+  });
+
+  async function finish() {
     await DB.setMeta('hasSeenOnboarding', true);
     overlay.classList.remove('visible');
-  });
+    overlay.style.display = 'none';
+    // If source was filled, trigger connect
+    const server = document.getElementById('ob-server')?.value.trim();
+    const user   = document.getElementById('ob-user')?.value.trim();
+    if (server && user && document.getElementById('save-source-btn')) {
+      document.getElementById('save-source-btn').click();
+    }
+  }
+
+  gotoStep(0);
 }
 
 function renderLive() {
@@ -242,6 +320,9 @@ function renderMovies() {
   renderPg('movies-pagination', pg, Math.ceil(filtered.length / PS), 'movies');
   ImageCache.preload(slice.map(m => m.logo).filter(Boolean));
   perfLog('renderMovies', { ms: performance.now() - t0, count: filtered.length, page: S.page.movies, view: isGrid ? 'grid' : 'list' });
+
+  // Swap in cached TMDB posters without triggering new API calls
+  if (isGrid && window.DB) _applyTmdbPosters(slice, 'vod', 'movies-grid');
 }
 
 function renderSeries() {
@@ -273,6 +354,8 @@ function renderSeries() {
   renderPg('series-pagination', pg, Math.ceil(filtered.length / PS), 'series');
   ImageCache.preload(slice.map(s => s.logo).filter(Boolean));
   perfLog('renderSeries', { ms: performance.now() - t0, count: filtered.length, page: S.page.series, view: isGrid ? 'grid' : 'list' });
+
+  if (isGrid && window.DB) _applyTmdbPosters(slice, 'series', 'series-grid');
 }
 
 function renderFavorites() {
@@ -280,7 +363,7 @@ function renderFavorites() {
   const grid  = document.getElementById('favorites-grid');
   const list  = document.getElementById('favorites-list');
   const empty = document.getElementById('favorites-empty');
-  const isGrid = S.view.live !== 'list';
+  const isGrid = S.view.favorites !== 'list';
 
   let items = getFavItems();
   if (activeType !== 'all') items = items.filter(f => f.type === activeType || (activeType === 'movie' && f.type === 'vod'));
@@ -611,7 +694,7 @@ function renderWatchlist() {
   const empty = document.getElementById('watchlist-empty');
   if (!grid) return;
   const items = getWatchlistItems();
-  const isGrid = S.view.live !== 'list';
+  const isGrid = S.view.watchlist !== 'list';
   if (!items.length) {
     grid.innerHTML = '';
     if (list) list.innerHTML = '';
@@ -780,4 +863,36 @@ function applySortToItems(items, section) {
   if (sort === 'rating') return copy.sort((a, b) => (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0));
   if (sort === 'year')   return copy.sort((a, b) => (parseInt(b.year) || 0) - (parseInt(a.year) || 0));
   return copy;
+}
+// ── TMDB poster swap (cache-only, no new API calls) ───────────────────────────
+async function _applyTmdbPosters(items, type, gridId) {
+  if (!window.TMDB) return;
+  const grid = document.getElementById(gridId);
+  if (!grid) return;
+
+  const cards = grid.querySelectorAll('.card');
+  if (!cards.length) return;
+
+  for (let i = 0; i < items.length && i < cards.length; i++) {
+    const item     = items[i];
+    const cacheKey = `${type}:${TMDB.cleanName(item.name)}`;
+    try {
+      const cached = await DB.getTMDB(cacheKey);
+      if (!cached?.data?.poster) continue;
+
+      const poster = cached.data.poster;
+      const placeholder = cards[i].querySelector('.card-poster-placeholder');
+      if (!placeholder) continue;
+
+      const imgEl = placeholder.querySelector('img');
+      if (imgEl) {
+        // Already has an img — just update src if different
+        if (imgEl.src !== poster) imgEl.src = poster;
+      } else {
+        // Has a fallback div — replace with img
+        const IS = 'display:block;width:100%;height:100%;object-fit:cover;';
+        placeholder.innerHTML = `<img src="${poster}" style="${IS}" loading="lazy">`;
+      }
+    } catch (_) { /* ignore */ }
+  }
 }

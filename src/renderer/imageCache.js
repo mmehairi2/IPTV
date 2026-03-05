@@ -1,15 +1,23 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// imageCache.js — In-memory poster/logo cache using blob URLs
+// imageCache.js — In-memory poster/logo cache
+//
+// Images from http:// IPTV servers cannot be fetched directly from the
+// renderer (file:// origin) due to Mixed Content blocking. We route all
+// image fetches through the main process via api.fetchImage() which uses
+// Node's http module — exactly the same pattern as api.fetchXtream().
+//
+// HTTPS images (e.g. TMDB posters) work fine in the renderer and are
+// fetched directly for speed.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const cache   = new Map(); // url -> blobUrl; insertion order = LRU (oldest first)
-const pending = new Map();
+const cache   = new Map(); // url -> blobUrl  (LRU, oldest-first insertion order)
+const pending = new Map(); // url -> Promise<blobUrl|null>
 const MAX     = 600;
 
 function getCached(url) { return cache.get(url) || null; }
 
 async function load(url) {
-  if (!url || !url.startsWith('http')) return null;
+  if (!url || url.indexOf('http') !== 0) return null;
   if (cache.has(url)) { touch(url); return cache.get(url); }
   if (pending.has(url)) return pending.get(url);
   const promise = fetchBlob(url).finally(() => pending.delete(url));
@@ -19,10 +27,25 @@ async function load(url) {
 
 async function fetchBlob(url) {
   try {
-    const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!resp.ok) return null;
-    const blob = await resp.blob();
-    if (!blob.type.startsWith('image/')) return null;
+    let blob;
+
+    if (url.startsWith('https://')) {
+      // HTTPS: fetch directly in renderer — no Mixed Content issue
+      const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!resp.ok) return null;
+      blob = await resp.blob();
+    } else {
+      // HTTP: route through main process to avoid Mixed Content blocking
+      const result = await window.api.fetchImage(url);
+      if (!result || !result.ok || !result.data) return null;
+      // Convert base64 back to a Blob
+      const binary = atob(result.data);
+      const bytes  = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      blob = new Blob([bytes], { type: result.mime || 'image/jpeg' });
+    }
+
+    if (!blob || !blob.type.startsWith('image/')) return null;
     const blobUrl = URL.createObjectURL(blob);
     store(url, blobUrl);
     return blobUrl;
@@ -40,7 +63,6 @@ function store(url, blobUrl) {
   cache.set(url, blobUrl);
 }
 
-// O(1): move url to end of insertion order (most recently used)
 function touch(url) {
   if (!cache.has(url)) return;
   const blobUrl = cache.get(url);
@@ -49,7 +71,7 @@ function touch(url) {
 }
 
 function preload(urls, batchSize = 8) {
-  const toLoad = urls.filter(u => u && u.startsWith('http') && !cache.has(u));
+  const toLoad = urls.filter(u => u && u.indexOf('http') === 0 && !cache.has(u));
   if (!toLoad.length) return;
   let i = 0;
   function nextBatch() {
@@ -69,13 +91,8 @@ function preload(urls, batchSize = 8) {
     : setTimeout(nextBatch, 100);
 }
 
-// img() — renders an image that fills its container.
-// Container must have: position:relative; overflow:hidden; and a defined size.
-// All layout (position, inset, width, height, object-fit) is owned by CSS rules
-// on .card-poster-placeholder img and .list-thumb img — not set inline here.
 function img(url, _unused, fallback) {
   fallback = fallback || '\uD83C\uDFAC';
-  // IS: only display:block — container CSS handles position/size/fit
   var IS = 'display:block;';
   var PS = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--text-3);';
 

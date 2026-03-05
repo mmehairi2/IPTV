@@ -5,18 +5,90 @@
 // mpv floats over the player div, positioned via screen coords
 // ============================================================
 
-const { app, BrowserWindow, ipcMain, Menu, screen, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, screen, shell, globalShortcut, protocol, net } = require('electron');
 const path   = require('path');
 const fs     = require('fs');
 const http   = require('http');
 const https  = require('https');
 const { spawn, execFile, exec } = require('child_process');
-const net    = require('net');
+const netMod = require('net');
 const os     = require('os');
+
+// ─── imgproxy:// protocol ─────────────────────────────────────────────────────
+// Allows the renderer (file:// origin) to load http:// images without Mixed
+// Content blocking. Usage: imgproxy://fetch?url=<encodeURIComponent(imageUrl)>
+// Registered before app ready as required by Electron.
+protocol.registerSchemesAsPrivileged([{
+  scheme: 'imgproxy',
+  privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true },
+}]);
+
+// ─── Auto Updater (safe require — not available in dev) ───────
+let autoUpdater = null;
+try {
+  autoUpdater = require('electron-updater').autoUpdater;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+} catch (_) {
+  console.log('[updater] electron-updater not available');
+}
+
+function setupAutoUpdater() {
+  if (!autoUpdater) return;
+  autoUpdater.on('update-available',  info => mainWindow?.webContents.send('update-available',  info));
+  autoUpdater.on('update-downloaded', info => mainWindow?.webContents.send('update-downloaded', info));
+  autoUpdater.on('error',             err  => mainWindow?.webContents.send('update-error', { message: err.message }));
+  // Check after 3s to let the app finish loading
+  setTimeout(() => { try { autoUpdater.checkForUpdates(); } catch (_) {} }, 3000);
+}
+
+ipcMain.on('install-update', () => { try { autoUpdater?.quitAndInstall(); } catch (_) {} });
 
 const IS_WIN = process.platform === 'win32';
 const IS_MAC = process.platform === 'darwin';
 const SOCK   = IS_WIN ? '\\\\.\\pipe\\mpvsocket' : '/tmp/mpvsocket';
+
+// ─── Window State ─────────────────────────────────────────────
+let WIN_STATE_FILE = null;
+function getStateFile() {
+  if (!WIN_STATE_FILE) WIN_STATE_FILE = path.join(app.getPath('userData'), 'window-state.json');
+  return WIN_STATE_FILE;
+}
+
+function loadWindowState() {
+  try {
+    const raw = fs.readFileSync(getStateFile(), 'utf8');
+    const s = JSON.parse(raw);
+    if (s && s.width && s.height) return s;
+  } catch (_) {}
+  return { width: 1280, height: 800 };
+}
+
+function saveWindowState() {
+  if (!mainWindow) return;
+  try {
+    const maximized = mainWindow.isMaximized();
+    const bounds = mainWindow.getBounds();
+    const state = maximized
+      ? { ...bounds, maximized: true }
+      : { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, maximized: false };
+    fs.writeFileSync(getStateFile(), JSON.stringify(state), 'utf8');
+  } catch (_) {}
+}
+
+function validateBounds(state) {
+  if (!state.x || !state.y) return state;
+  try {
+    const displays = screen.getAllDisplays();
+    const onScreen = displays.some(d => {
+      const b = d.workArea;
+      return state.x >= b.x - 50 && state.y >= b.y - 50
+          && state.x < b.x + b.width && state.y < b.y + b.height;
+    });
+    if (!onScreen) { delete state.x; delete state.y; }
+  } catch (_) {}
+  return state;
+}
 
 let mainWindow  = null;
 let mpvProcess  = null;
@@ -157,7 +229,7 @@ async function connectSocket(tries = 6) {
 
 function tryConnect() {
   return new Promise((resolve, reject) => {
-    const client = new net.Socket();
+    const client = new netMod.Socket();
     let ok = false;
 
     client.connect({ path: SOCK }, () => {
@@ -248,10 +320,23 @@ function killMpv() {
 }
 
 // ─── Window ───────────────────────────────────────────────────
+const ICON_PATH = IS_WIN
+  ? path.join(__dirname, '../assets/icon.ico')
+  : path.join(__dirname, '../assets/icon.png');
+
 function createWindow() {
+  const savedBounds = validateBounds(loadWindowState());
+
   mainWindow = new BrowserWindow({
-    width: 1280, height: 800, minWidth: 960, minHeight: 600,
+    width: savedBounds.width   || 1280,
+    height: savedBounds.height || 800,
+    x: savedBounds.x,
+    y: savedBounds.y,
+    minWidth: 960, minHeight: 600,
     backgroundColor: '#050a18',
+    frame: false,
+    titleBarStyle: 'hidden',
+    icon: fs.existsSync(ICON_PATH) ? ICON_PATH : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -262,15 +347,52 @@ function createWindow() {
     },
   });
 
+  if (savedBounds.maximized) mainWindow.maximize();
+
   mainWindow.loadFile(path.join(__dirname, 'renderer/index.html'));
 
-  // Tell renderer when window moves so it can re-sync mpv position
-  ['move', 'resize'].forEach(ev =>
-    mainWindow.on(ev, () => mainWindow?.webContents.send('win-moved'))
-  );
+  // Save state on move/resize/close
+  ['move', 'resize'].forEach(ev => mainWindow.on(ev, () => {
+    saveWindowState();
+    mainWindow?.webContents.send('win-moved');
+  }));
+  mainWindow.on('maximize',   () => mainWindow?.webContents.send('win-maximize-change', { maximized: true }));
+  mainWindow.on('unmaximize', () => mainWindow?.webContents.send('win-maximize-change', { maximized: false }));
 
-  mainWindow.on('closed', () => { killMpv(); mainWindow = null; });
+  mainWindow.on('closed', () => { saveWindowState(); killMpv(); mainWindow = null; });
   setupContextMenu();
+}
+
+// ─── Titlebar IPC ─────────────────────────────────────────────
+ipcMain.on('win-minimize', () => mainWindow?.minimize());
+ipcMain.on('win-maximize', () => {
+  if (!mainWindow) return;
+  mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
+});
+ipcMain.on('win-close',    () => mainWindow?.close());
+ipcMain.handle('win-is-maximized', () => mainWindow?.isMaximized() ?? false);
+
+// ─── Media Keys ───────────────────────────────────────────────
+function registerMediaKeys() {
+  const { globalShortcut } = require('electron');
+  const fwd = (ch, payload) => mainWindow?.webContents.send(ch, payload);
+
+  const keys = {
+    'MediaPlayPause':     () => fwd('media-key', { key: 'playpause' }),
+    'MediaStop':          () => fwd('media-key', { key: 'stop' }),
+    'MediaNextTrack':     () => fwd('media-key', { key: 'next' }),
+    'MediaPreviousTrack': () => fwd('media-key', { key: 'prev' }),
+    'VolumeUp':           () => fwd('media-key', { key: 'volup' }),
+    'VolumeDown':         () => fwd('media-key', { key: 'voldown' }),
+  };
+
+  for (const [accel, handler] of Object.entries(keys)) {
+    try { globalShortcut.register(accel, handler); } catch (_) {}
+  }
+}
+
+function unregisterMediaKeys() {
+  try { require('electron').globalShortcut.unregisterAll(); } catch (_) {}
 }
 
 // ─── Navigation hardening ──────────────────────────────────────────────
@@ -400,6 +522,39 @@ ipcMain.handle('fetch-m3u',    (_, { url }) => fetchUrl(url));
 ipcMain.handle('fetch-xtream', (_, { url }) => fetchUrl(url));
 ipcMain.handle('fetch-epg',    (_, { url }) => fetchUrl(url));
 
+// Fetch image bytes via Node — bypasses renderer Mixed Content / CORS restrictions
+// Returns { ok, data: base64string, mime } or { ok: false, error }
+ipcMain.handle('fetch-image', (_, { url }) => {
+  return new Promise(resolve => {
+    if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+      return resolve({ ok: false, error: 'Invalid URL' });
+    }
+    const mod = url.startsWith('https') ? https : http;
+    const req = mod.get(url, {
+      timeout: 10000,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Stream/1.0)' },
+    }, res => {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        res.resume();
+        return resolve({ ok: false, error: 'HTTP ' + res.statusCode });
+      }
+      const mime = res.headers['content-type'] || 'image/jpeg';
+      if (!mime.startsWith('image/')) {
+        res.resume();
+        return resolve({ ok: false, error: 'Not an image' });
+      }
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        const b64 = Buffer.concat(chunks).toString('base64');
+        resolve({ ok: true, data: b64, mime });
+      });
+    });
+    req.on('error',   err => resolve({ ok: false, error: err.message }));
+    req.on('timeout', ()  => { req.destroy(); resolve({ ok: false, error: 'Timeout' }); });
+  });
+});
+
 ipcMain.handle('open-external', (_, { url }) => {
   if (url && (url.startsWith('http:') || url.startsWith('https:'))) {
     return shell.openExternal(url).then(() => ({ ok: true })).catch(err => ({ ok: false, error: err?.message }));
@@ -489,10 +644,18 @@ ipcMain.handle('vlc-open', async (_, { url }) => {
       return { ok: false, error: 'VLC executable not found' };
     }
     
-    // Spawn VLC with the URL
-    const proc = spawn(executablePath, [url], { 
-      detached: true, 
-      stdio: 'ignore' 
+    // Spawn VLC with the URL, silent flags + windowsHide suppress console window
+    const proc = spawn(executablePath, [
+      url,
+      '--intf', 'dummy',
+      '--no-interact',
+      '--play-and-exit',
+      '--no-one-instance',
+    ], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,  // hides the console window on Windows
+      shell: false,       // never route through cmd.exe (opens its own window)
     });
     proc.unref();
     
@@ -612,11 +775,30 @@ function setupContextMenu() {
 
 // ─── Lifecycle ────────────────────────────────────────────────
 app.whenReady().then(() => {
+  // ── imgproxy:// — proxies http(s) image URLs through Node to bypass Mixed Content ──
+  protocol.handle('imgproxy', (request) => {
+    try {
+      const reqUrl  = new URL(request.url);
+      const target  = decodeURIComponent(reqUrl.searchParams.get('url') || '');
+      if (!target.startsWith('http://') && !target.startsWith('https://')) {
+        return new Response('Bad URL', { status: 400 });
+      }
+      // Use Electron's net module (not Node's http) — it respects session settings
+      return net.fetch(target, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Stream/1.0)' },
+      });
+    } catch (e) {
+      return new Response('Error: ' + e.message, { status: 500 });
+    }
+  });
+
   createWindow();
+  registerMediaKeys();
+  setupAutoUpdater();
   app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
 });
 
-app.on('window-all-closed', () => { if (!IS_MAC) app.quit(); });
+app.on('window-all-closed', () => { unregisterMediaKeys(); if (!IS_MAC) app.quit(); });
 
 app.on('before-quit', async (e) => {
   // Signal the renderer to flush playback position before we kill mpv.

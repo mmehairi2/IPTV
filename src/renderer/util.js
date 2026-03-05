@@ -29,17 +29,48 @@ function emptyState(icon, title, sub) {
   </div>`;
 }
 
-function toast(msg, type = 'info', ms = 3200) {
-  const icons = { success: '✓', error: '✕', info: 'ℹ' };
+function toast(msg, type = 'info', ms = 3200, opts = {}) {
+  const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
   const c  = document.getElementById('toast-container');
+  if (!c) return;
+
+  // Limit stack to 5 toasts
+  const existing = c.querySelectorAll('.toast:not(.out)');
+  if (existing.length >= 5) {
+    existing[0].classList.add('out');
+    setTimeout(() => existing[0].remove(), 300);
+  }
+
   const el = document.createElement('div');
   el.className = `toast ${type}`;
-  el.innerHTML = `<span class="toast-icon">${icons[type] || ''}</span><span>${esc(msg)}</span>`;
+
+  let inner = `<span class="toast-icon">${icons[type] || 'ℹ'}</span><span>${esc(msg)}</span>`;
+  if (opts.retry) {
+    inner += `<button class="toast-retry-btn" data-retry="1">Retry</button>`;
+  }
+  el.innerHTML = inner;
+
+  if (opts.retry) {
+    el.querySelector('[data-retry]').addEventListener('click', () => {
+      el.classList.add('out');
+      setTimeout(() => el.remove(), 300);
+      opts.retry();
+    });
+  }
+
   c.appendChild(el);
-  setTimeout(() => {
+  const timer = setTimeout(() => {
     el.classList.add('out');
     setTimeout(() => el.remove(), 300);
   }, ms);
+
+  // Click to dismiss
+  el.addEventListener('click', (e) => {
+    if (e.target.closest('[data-retry]')) return;
+    clearTimeout(timer);
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 300);
+  });
 }
 
 function updateSrcIndicator(on, text) {

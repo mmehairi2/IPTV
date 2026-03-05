@@ -563,9 +563,20 @@ ipcMain.handle('open-external', (_, { url }) => {
 });
 
 // ─── VLC ──────────────────────────────────────────────────────
+let vlcProcess = null;  // track so we can kill it
+
 ipcMain.handle('vlc-check', async () => {
   const vlcPath = await findVLC();
   return { found: !!vlcPath, path: vlcPath };
+});
+
+ipcMain.handle('vlc-close', async () => {
+  if (vlcProcess) {
+    try { vlcProcess.kill('SIGTERM'); } catch (_) {}
+    setTimeout(() => { try { vlcProcess?.kill('SIGKILL'); } catch (_) {} }, 800);
+    vlcProcess = null;
+  }
+  return { ok: true };
 });
 
 // Helper function to resolve Windows shortcuts (.lnk files)
@@ -644,18 +655,13 @@ ipcMain.handle('vlc-open', async (_, { url }) => {
       return { ok: false, error: 'VLC executable not found' };
     }
     
-    // Spawn VLC with the URL, silent flags + windowsHide suppress console window
-    const proc = spawn(executablePath, [
-      url,
-      '--intf', 'dummy',
-      '--no-interact',
-      '--play-and-exit',
-      '--no-one-instance',
-    ], {
+    // Launch VLC as a normal standalone GUI app.
+    // detached + unref lets it live independently; user closes it with VLC's own X button.
+    const proc = spawn(executablePath, [url], {
       detached: true,
       stdio: 'ignore',
-      windowsHide: true,  // hides the console window on Windows
-      shell: false,       // never route through cmd.exe (opens its own window)
+      windowsHide: false,
+      shell: false,
     });
     proc.unref();
     
@@ -668,7 +674,25 @@ ipcMain.handle('vlc-open', async (_, { url }) => {
 
 // Helper function to find VLC
 async function findVLC() {
-  // First, try to find the actual vlc.exe in common locations
+  // On macOS, VLC's binary ignores --version and opens a GUI window,
+  // so probe() always times out. Use fs.existsSync for macOS instead.
+  if (IS_MAC) {
+    const macPaths = [
+      '/Applications/VLC.app/Contents/MacOS/VLC',
+      path.join(os.homedir(), 'Applications/VLC.app/Contents/MacOS/VLC'),
+      '/usr/local/bin/vlc',
+      '/opt/homebrew/bin/vlc',
+    ];
+    for (const p of macPaths) {
+      if (fs.existsSync(p)) {
+        console.log('[VLC] Found on macOS at:', p);
+        return p;
+      }
+    }
+    return null;
+  }
+
+  // Windows / Linux: probe() works fine
   const exePaths = IS_WIN ? [
     // Standard Program Files locations
     'C:\\Program Files\\VideoLAN\\VLC\\vlc.exe',
@@ -688,11 +712,6 @@ async function findVLC() {
     // In app directory
     path.join(__dirname, 'vlc.exe'),
     path.join(process.cwd(), 'vlc.exe'),
-  ] : IS_MAC ? [
-    '/Applications/VLC.app/Contents/MacOS/VLC',
-    '/applications/VLC.app/Contents/MacOS/VLC',
-    '/usr/local/bin/vlc',
-    '/opt/homebrew/bin/vlc',
   ] : [
     'vlc',
     '/usr/bin/vlc',

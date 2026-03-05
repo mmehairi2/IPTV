@@ -144,6 +144,7 @@ contextBridge.exposeInMainWorld('api', {
   // ── VLC Fallback ────────────────────────────────────────────
   /** Check if VLC is installed and get its path */
   vlcCheck: () => invoke('vlc-check'),
+  vlcClose: () => invoke('vlc-close'),
 
   /** Open a URL in VLC (fallback if mpv not available) */
   vlcOpen: (url) => invoke('vlc-open', { url }),

@@ -48,6 +48,9 @@ function toast(msg, type = 'info', ms = 3200, opts = {}) {
   if (opts.retry) {
     inner += `<button class="toast-retry-btn" data-retry="1">Retry</button>`;
   }
+  if (opts.action && opts.label) {
+    inner += `<button class="toast-retry-btn" data-action="1">${esc(opts.label)}</button>`;
+  }
   el.innerHTML = inner;
 
   if (opts.retry) {
@@ -55,6 +58,13 @@ function toast(msg, type = 'info', ms = 3200, opts = {}) {
       el.classList.add('out');
       setTimeout(() => el.remove(), 300);
       opts.retry();
+    });
+  }
+  if (opts.action) {
+    el.querySelector('[data-action]')?.addEventListener('click', () => {
+      el.classList.add('out');
+      setTimeout(() => el.remove(), 300);
+      opts.action();
     });
   }
 
